@@ -1,0 +1,12 @@
+pyramid
+Chameleon
+
+[docs]
+Sphinx
+docutils
+repoze.sphinx.autointerface
+
+[testing]
+nose
+coverage
+virtualenv

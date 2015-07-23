@@ -1,0 +1,61 @@
+<table id="pSqlaTable" class="pDebugSortable table table-striped"
+>
+	<thead>
+		<tr>
+			<th>Time&nbsp;(ms)</th>
+			<th>Action</th>
+			<th>Query</th>
+			<th>Params</th>
+		</tr>
+	</thead>
+	<tbody>
+	% for i, query in enumerate(queries):
+		<tr>
+			<td>${'%.2f' % query['duration']}</td>
+			<td>
+			% if query['is_select']:
+				<!-- Button to trigger modal -->
+				<a href="${route_url('debugtoolbar.sql_select', request_id=pdtb_id, query_index=query['query_index'])}" data-target="#SelectModal" data-toggle="modal">SELECT</a>
+				<a href="${route_url('debugtoolbar.sql_explain', request_id=pdtb_id, query_index=query['query_index'])}" data-target="#ExplainModal" data-toggle="modal">EXPLAIN</a>
+			% endif
+			</td>
+			<td>${query['sql']|n}</td>
+			<td>${text(query['parameters'])}</td>
+		</tr>
+	% endfor
+	</tbody>
+</table>
+
+<!-- Modal -->
+<div class="modal fade" id="SelectModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+        </div>
+        <!-- /.modal-content -->
+    </div>
+    <!-- /.modal-dialog -->
+</div>
+<div class="modal fade" id="ExplainModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+        </div>
+        <!-- /.modal-content -->
+    </div>
+    <!-- /.modal-dialog -->
+</div>
+
+<!-- /.modal -->
+
+##
+## See  "Twitter bootstrap remote modal shows same content everytime"
+##      * http://stackoverflow.com/questions/12286332/twitter-bootstrap-remote-modal-shows-same-content-everytime
+<script type="text/javascript">
+$(document).ready(function() {
+	$("#ExplainModal").on("hidden.bs.modal", function (e) {
+	    $(e.target).removeData("bs.modal").find(".modal-content").empty();
+	});
+	$("#SelectModal").on("hidden.bs.modal", function (e) {
+	    $(e.target).removeData("bs.modal").find(".modal-content").empty();
+	});
+});
+</script>

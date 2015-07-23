@@ -1,0 +1,27 @@
+<%def name="settings_tab()">
+<div class="row-fluid">
+<div class="span12">
+<div class="container">
+
+<h3>Settings</h3>
+
+<p>Some pyramid debug toolbar panels can be activated (this enables additional features)</p>
+
+% for panel in panels:
+	% if panel.user_activate:
+		<h4>
+		${panel.nav_title}
+		</h4>
+		% if panel.name in default_active_panels:
+		<span>Enabled: </span>   <span class="switch default-active" title="Panel is active by default."></span>
+		% else:
+		<span>Enabled: </span>	<span id="${panel.dom_id}-switch" data-pdtb-panel="${panel.name}" class="switch switchable ${'active' if panel.is_active else 'inactive'}"
+		title="Enable or disable the panel"> </span>
+		% endif
+	% endif
+% endfor
+
+</div>
+</div>
+</div>
+</%def>

@@ -1,0 +1,50 @@
+Metadata-Version: 1.1
+Name: pyramid-chameleon
+Version: 0.3
+Summary: pyramid_chameleon
+Home-page: https://github.com/Pylons/pyramid_chameleon
+Author: reed@koansys.com, Pylons & Pyramid community
+Author-email: pylons-discuss@googlegroups.com
+License: BSD-derived (http://www.repoze.org/LICENSE.txt)
+Description: Chameleon templating system Bindings for Pyramid
+        =================================================
+        
+        These are bindings for the `Chameleon templating system
+        <http://pagetemplates.org/>`_ for the Pyramid_ web framework.  See
+        http://docs.pylonsproject.org/projects/pyramid_chameleon/en/latest/ for
+        documentation.
+        
+        .. _Pyramid: http://pylonsproject.org/
+        
+        
+        0.3 (2014-07-01)
+        ----------------
+        
+        - Remove dependency on ``pyramid.interfaces.ITemplateRenderer`` (which is
+          deprecated in Pyramid > 1.5).
+        
+        - Update Trove classifiers and tests to support Python 3.4.
+        
+        0.2 (2014-02-09)
+        ----------------
+        
+        - Dropped dependency on ``nose-selecttests``.
+        
+        0.1 (2013-09-07)
+        ----------------
+        
+        -  Initial version
+        
+Platform: UNKNOWN
+Classifier: Programming Language :: Python
+Classifier: Framework :: Pylons
+Classifier: Programming Language :: Python :: 2.6
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.2
+Classifier: Programming Language :: Python :: 3.3
+Classifier: Programming Language :: Python :: 3.4
+Classifier: Intended Audience :: Developers
+Classifier: License :: Repoze Public License
+Classifier: Topic :: Text Processing :: Markup :: XML
+Classifier: Topic :: Text Processing :: Markup :: HTML

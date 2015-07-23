@@ -1,0 +1,5 @@
+      [paste.app_factory]
+      main = budget:main
+      [console_scripts]
+      initialize_budget_db = budget.scripts.initializedb:main
+      

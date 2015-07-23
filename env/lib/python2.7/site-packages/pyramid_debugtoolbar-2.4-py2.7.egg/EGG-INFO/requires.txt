@@ -1,0 +1,13 @@
+pyramid>=1.4
+pyramid_mako>=0.3.1
+repoze.lru
+Pygments
+
+[docs]
+Sphinx
+pylons-sphinx-themes >= 0.3
+
+[testing]
+WebTest
+nose
+coverage
