@@ -1,2 +1,6 @@
 **/*.pyc
 **/*.swp
+oostats.json
+checksums.json
+data/
+creds/creds.yaml

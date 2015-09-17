@@ -1,0 +1,10 @@
+Create a 'creds.yaml' file in this format:
+
+---
+#AccountName: {
+#    account: 12345678
+#    key: abcdefgh
+#    secret: 12345678
+#    }
+
+

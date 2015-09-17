@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="${request.locale_name}">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="pyramid web application">
+    <meta name="author" content="Brett Lentz">
+    <link rel="shortcut icon" href="${request.static_url('budget:static/pyramid-16x16.png')}">
+
+    <title>OpenShift Statistics and Reporting</title>
+
+    <link href="${request.static_url('budget:static/theme.css')}" rel="stylesheet">
+    <script src="${request.static_url('budget:static/jquery-2.1.4.min.js')}"></script>
+  </head>
+
+  <body>
+
+		<div id="note">
+				<p>For each listing, the delta will be:</p>
+				<ul>
+						<li>positive if there are unused reservations</li>
+						<li>negative if there are on-demand instances in need of reservation</li>
+				</ul>
+		</div>
+		<div class="results_container" tal:repeat="account results" tal:attributes="id account">
+				<div class="account_header">
+						<span id="account" tal:content="account">Account</span>
+				</div>
+				<div tal:attributes="id account" class="results_table_container">
+				</div>
+				<script type="text/javascript">
+$(document).ready(function() {
+				$('div#${account}.results_table_container').html('<img src="${request.static_url('budget:static/ajax-loader.gif')}" />');
+				jQuery.ajax({
+								url: "/reservation_data",
+								data: "id=${account}",
+								type: "POST",
+								success: function(data) { $('div#${account}.results_table_container').html(data) }
+				})
+})
+				</script>
+		</div>
+		<script type="text/javascript">
+$(function() {
+		$("div.results_container").on('click', '.button', function() {
+		// validate and process form
+				var idx = this.id.split("_").slice(-1);
+				var uniqueish = Array(5+1).join((Math.random().toString(36)+'00000000000000000').slice(2, 18)).slice(0, 5);
+
+
+				// limit our traversal of the DOM so we don't
+				// query the wrong form and get incorrect data.
+				var dad = $(this).parent();
+				var granddad = dad.parent();
+
+				var account = dad.children("input#account").val();
+				var az = dad.children("input#availability_zone_"+idx).val();
+				var type = dad.children("input#instance_type_"+idx).val();
+				var count = Math.abs(dad.children("input#count_"+idx).val());
+				var dataString = 'account=' + account + '&az=' + az + '&type=' + type + '&num=' + count;
+				//alert(dataString); return false;
+				$.ajax({
+								type: 'POST',
+								url: '/reservation_purchase',
+								data: dataString,
+								success: function() {
+										var msg = 'message_'+uniqueish+'_'+idx
+										granddad.html('<div class="message" id="'+msg+'"></div>');
+										$('#'+msg).html("<span>Purchased!</span>")
+												.append('<img class="icon" id="checkmark" src="${request.static_url('budget:static/checkmark.png')}">')
+												.hide()
+												.fadeIn(750, function() { $('#message_'+idx) });
+								},
+								error: function() {
+										var msg = 'message_'+uniqueish+'_'+idx
+										granddad.html('<div class="message" id="'+msg+'"></div>');
+										$('#'+msg).html("<span>Error!</span>")
+												.append('<img class="icon" id="warning" src="${request.static_url('budget:static/warning.png')}">')
+												.hide()
+												.fadeIn(750, function() { $('#message_'+idx) });
+								}
+				});
+				return false
+		});
+});
+		</script>
+  </body>
+</html>

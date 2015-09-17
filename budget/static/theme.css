@@ -2,15 +2,10 @@
 body {
   font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-weight: 300;
-  color: #ffffff;
-  background: #bc2131;
+  color: #000;
+  background: #eee;
 }
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
+h1, h2, h3, h4, h5, h6 {
   font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-weight: 300;
 }
@@ -26,129 +21,63 @@ p {
 .font-bold {
   font-weight: 700;
 }
-.starter-template {
-  margin-top: 250px;
+
+.results_container {
 }
-.starter-template .content {
-  margin-left: 10px;
+.account_header {
+		font-size: 1.5em;
+		font-weight: 700;
 }
-.starter-template .content h1 {
-  margin-top: 10px;
-  font-size: 60px;
+#results_body {
+		margin: 25px;
 }
-.starter-template .content h1 .smaller {
-  font-size: 40px;
-  color: #f2b7bd;
+#region_name {
+		font-size: 1.25em;
+		font-weight: 600;
 }
-.starter-template .content .lead {
-  font-size: 25px;
-  color: #f2b7bd;
+.table {
+		display: table;
+		width: auto;
 }
-.starter-template .content .lead .font-normal {
-  color: #ffffff;
+.row {
+		display: table-row;
+		margin: 10px;
+		width: auto;
+		height: 50px;
+		clear: both;
 }
-.starter-template .links {
-  float: right;
-  right: 0;
-  margin-top: 125px;
+.column {
+		display: table-column;
+		padding: 10px;
+		width: 100px;
+		float: left; //fix for buggy browsers
 }
-.starter-template .links ul {
-  display: block;
-  padding: 0;
-  margin: 0;
+#region_results_header {
+		display: table-column;
+		font-weight: 500;
+		padding: 10px;
+		width: 100px;
+		float: left; //fix for buggy browsers
 }
-.starter-template .links ul li {
-  list-style: none;
-  display: inline;
-  margin: 0 10px;
+.purchase_form {
+		position: relative;
+		top: 10px;
 }
-.starter-template .links ul li:first-child {
-  margin-left: 0;
+.message {
+		font-size: 1.10em;
+		font-weight: 400;
 }
-.starter-template .links ul li:last-child {
-  margin-right: 0;
+img#checkmark.icon {
+		width: 20px;
+		height: 20px;
+		position: relative;
+		top: 3px;
+		right: -10px;
 }
-.starter-template .links ul li.current-version {
-  color: #f2b7bd;
-  font-weight: 400;
-}
-.starter-template .links ul li a, a {
-  color: #f2b7bd;
-  text-decoration: underline;
-}
-.starter-template .links ul li a:hover, a:hover {
-  color: #ffffff;
-  text-decoration: underline;
-}
-.starter-template .links ul li .icon-muted {
-  color: #eb8b95;
-  margin-right: 5px;
-}
-.starter-template .links ul li:hover .icon-muted {
-  color: #ffffff;
-}
-.starter-template .copyright {
-  margin-top: 10px;
-  font-size: 0.9em;
-  color: #f2b7bd;
-  text-transform: lowercase;
-  float: right;
-  right: 0;
-}
-@media (max-width: 1199px) {
-  .starter-template .content h1 {
-    font-size: 45px;
-  }
-  .starter-template .content h1 .smaller {
-    font-size: 30px;
-  }
-  .starter-template .content .lead {
-    font-size: 20px;
-  }
-}
-@media (max-width: 991px) {
-  .starter-template {
-    margin-top: 0;
-  }
-  .starter-template .logo {
-    margin: 40px auto;
-  }
-  .starter-template .content {
-    margin-left: 0;
-    text-align: center;
-  }
-  .starter-template .content h1 {
-    margin-bottom: 20px;
-  }
-  .starter-template .links {
-    float: none;
-    text-align: center;
-    margin-top: 60px;
-  }
-  .starter-template .copyright {
-    float: none;
-    text-align: center;
-  }
-}
-@media (max-width: 767px) {
-  .starter-template .content h1 .smaller {
-    font-size: 25px;
-    display: block;
-  }
-  .starter-template .content .lead {
-    font-size: 16px;
-  }
-  .starter-template .links {
-    margin-top: 40px;
-  }
-  .starter-template .links ul li {
-    display: block;
-    margin: 0;
-  }
-  .starter-template .links ul li .icon-muted {
-    display: none;
-  }
-  .starter-template .copyright {
-    margin-top: 20px;
-  }
+img#warning.icon {
+		width: 20px;
+		height: 20px;
+		position: relative;
+		top: 3px;
+		right: -10px;
 }

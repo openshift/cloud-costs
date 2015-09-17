@@ -5,7 +5,7 @@ from sqlalchemy import (
     Integer,
     Text,
     String,
-    Datetime
+    DateTime
     )
 
 from sqlalchemy.ext.declarative import declarative_base
@@ -38,8 +38,8 @@ class AwsDetailedLineItem(Base):
     availability_zone = Column(String(255), nullable=True)
     reserved_instance = Column(String(255), nullable=True)
     item_description = Column(String(255), nullable=True)
-    usage_start_date = Column(Datetime, nullable=False)
-    usage_end_date = Column(Datetime, nullable=False)
+    usage_start_date = Column(DateTime, nullable=False)
+    usage_end_date = Column(DateTime, nullable=False)
     usage_quantity = Column(Float, nullable=True)
     blended_rate = Column(Float, nullable=True)
     blended_cost = Column(Float, nullable=True)
@@ -67,8 +67,8 @@ class AwsInvoiceLineItem(Base):
     availability_zone = Column(String(255), nullable=True)
     reserved_instance = Column(String(255), nullable=True)
     item_description = Column(String(255), nullable=True)
-    usage_start_date = Column(Datetime, nullable=False)
-    usage_end_date = Column(Datetime, nullable=False)
+    usage_start_date = Column(DateTime, nullable=False)
+    usage_end_date = Column(DateTime, nullable=False)
     usage_quantity = Column(Float, nullable=True)
     blended_rate = Column(Float, nullable=True)
     blended_cost = Column(Float, nullable=True)
@@ -91,15 +91,15 @@ class Budget(Base):
     id = Column(Integer, primary_key=True)
     fiscal_year = Column(Integer, nullable=False)
     quarter = Column(Integer, nullable=False)
-    qtr_start = Column(Datetime, nullable=False)
-    qtr_end = Column(Datetime, nullable=False)
+    qtr_start = Column(DateTime, nullable=False)
+    qtr_end = Column(DateTime, nullable=False)
     budget = Column(Float, nullable=False)
 
 class MiscExpenses(Base):
     __tablename__ = 'misc_expenses'
 
     id = Column(Integer, primary_key=True)
-    date = Column(Datetime, nullable=False)
+    date = Column(DateTime, nullable=False)
     vendor = Column(String(255), nullable=False)
     amount = Column(Float, nullable=False)
     amortizable = Column(Integer, nullable=True)
@@ -115,7 +115,7 @@ class OpenshiftProfileStats(Base):
     __tablename__ = 'openshift_profile_stats'
 
     id = Column(Integer, primary_key=True)
-    collection_date = Column(Datetime, nullable=False)
+    collection_date = Column(DateTime, nullable=False)
     profile_name = Column(String(255), nullable=False)
     nodes_count = Column(Integer, nullable=True)
     gears_active_count = Column(Integer, nullable=True)

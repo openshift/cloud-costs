@@ -9,10 +9,13 @@ with open(os.path.join(here, 'CHANGES.txt')) as f:
     CHANGES = f.read()
 
 requires = [
+    'boto',
+    'mysql-python',
     'pyramid',
     'pyramid_chameleon',
     'pyramid_debugtoolbar',
     'pyramid_tm',
+    'python-dateutil',
     'SQLAlchemy',
     'transaction',
     'zope.sqlalchemy',
@@ -20,7 +23,7 @@ requires = [
     ]
 
 setup(name='budget',
-      version='0.0',
+      version='0.1',
       description='budget',
       long_description=README + '\n\n' + CHANGES,
       classifiers=[
