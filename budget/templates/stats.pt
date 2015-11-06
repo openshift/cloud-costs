@@ -18,14 +18,19 @@
   </head>
 
   <body>
-
-	<div>
-			<p>TODO</p>
-	</div>
-
-	<div class='graph-container'>
-			<div id='chart'><svg></svg></div>
-			<div tal:replace="graph" />
-	</div>
+		<div class='date-selector'>
+				<form method='post' class='date-form'>
+						<select name='date'>
+								<option tal:repeat='date dates'
+												tal:attributes='value date'
+												tal:attributes='selected "selected" if date==selected_date else None'>
+										${date}
+								</option>
+						</select>
+					<input type='submit' />
+				</form>
+		</div>
+		<div class='d3-chart-container' id='chart'><svg id='d3-svg'></svg></div>
+		<script tal:replace='graph' />
   </body>
 </html>

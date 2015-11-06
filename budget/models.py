@@ -78,8 +78,8 @@ class AwsInvoiceLineItem(Base):
     user_environment = Column(String(255), nullable=True)
     user_node = Column(String(255), nullable=True)
 
-class LinkedAccountId(Base):
-    __tablename__ = 'linked_account_id'
+class AwsLinkedAccountId(Base):
+    __tablename__ = 'aws_linked_account_id'
 
     id = Column(Integer, primary_key=True)
     linked_account_id = Column(String(255), nullable=True, unique=True)
