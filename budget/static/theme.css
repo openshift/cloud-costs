@@ -81,3 +81,14 @@ img#warning.icon {
 		top: 3px;
 		right: -10px;
 }
+div.d3-chart-container {
+		height: 600px;
+		width: 75%;
+}
+input.text_input {
+		width: 30px;
+}
+input {
+		position: relative;
+		top: 15px;
+}

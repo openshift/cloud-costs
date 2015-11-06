@@ -2,16 +2,16 @@
 		<div id="region_name" tal:content="region.name">Region</div>
 		<div class="table" id="results_table">
 				<div class="row" id="region_results_row">
-						<div class="column" id="region_results_header" tal:repeat="col header" tal:content="col">Column</div>
+						<div class="column" id="region_results_header" tal:repeat="col header"><p tal:content="col">Column</p></div>
 				</div>
 				<div class="row" id="region_results_row_${account}_${region.name}_${repeat.region.index}" tal:repeat="line results[region]">
-						<div class="column" id="region_results_column_${account}_${region.name}_${repeat.line.index}" tal:repeat="col line" tal:content="col">Column</div>
+						<div class="column" id="region_results_column_${account}_${region.name}_${repeat.line.index}" tal:repeat="col line"><p tal:content="col">Column</p></div>
 						<div class="purchase_form" id="purchase_form_${account}_${region.name}_${repeat.line.index}" tal:condition="line[4]<0">
 								<form name="ri_purchase_${account}_${region.name}_${repeat.line.index}" action="" method="post">
 										<input type="hidden" name="account" id="account" value="${account}" />
 										<input type="hidden" name="availability_zone" id="availability_zone_${repeat.line.index}" value="${line[0]}" />
 										<input type="hidden" name="instance_type" id="instance_type_${repeat.line.index}" value="${line[1]}" />
-										<input type="hidden" name="count" id="count_${repeat.line.index}" value="${line[4]}" />
+										<input type="text" name="count" class="text_input" id="count_${repeat.line.index}" value="${abs(line[4])}" />
 										<input type="button" name="Purchase" class="button" id="submit_button_${repeat.line.index}" value="Purchase" />
 								</form>
 						</div>
