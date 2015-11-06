@@ -1,4 +1,4 @@
-# wrapper for emitting nvd3 javascrpt glue
+# wrapper for emitting nvd3 javascript glue
 
 class Nvd3js (object):
     _js_ = '''

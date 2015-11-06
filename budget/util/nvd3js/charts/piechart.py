@@ -14,6 +14,8 @@ class PieChart(Nvd3js):
             .showLegend(%(show_legend)s)
             .legendPosition('%(legend_position)s')
             .duration(%(duration)i)
+            .labelType('%(label_type)s')
+            .labelThreshold(%(label_threshold)f)
         ''' % dict(
                 show_labels=self.show_labels,
                 top_margin=self.top_margin,
@@ -24,8 +26,9 @@ class PieChart(Nvd3js):
                 height=self.height,
                 show_legend=self.show_legend,
                 legend_position=self.legend_position,
-                duration=self.duration
-        )
+                duration=self.duration,
+                label_type=self.label_type,
+                label_threshold=self.label_threshold )
 
     def __init__(self, **kwargs):
         self.show_labels = 'true'
@@ -36,10 +39,12 @@ class PieChart(Nvd3js):
         self.width = 'null'
         self.height = 'null'
         self.show_legend = 'true'
-        self.legend_position = 'top'
+        self.legend_position = 'top'  # top or right
         self.duration = 250
+        self.label_type = "key"  # key, value, or percent
+        self.label_threshold = 0.2
 
-        super(PieChart, self)
+        super(PieChart, self).__init__(**kwargs)
 
     def __html__(self):
         ''' used by tal:replace '''
