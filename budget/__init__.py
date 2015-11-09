@@ -21,6 +21,7 @@ def main(global_config, **settings):
     config.add_route('stats', '/stats/{graph}')
     config.add_route('myview', '/myview')
     config.add_route('reservation', '/reservation')
+    config.add_route('reservation_csv', '/reservation_csv')
     config.add_route('reservation_data', '/reservation_data')
     config.add_route('reservation_purchase', '/reservation_purchase')
     config.scan()

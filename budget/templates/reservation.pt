@@ -23,6 +23,9 @@
 						<li>negative if there are on-demand instances in need of reservation</li>
 				</ul>
 		</div>
+		<div id="csv" class="link">
+				<a href="/reservation_csv">Click for CSV</a>
+		</div>
 		<div class="results_container" tal:repeat="account results" tal:attributes="id account">
 				<div class="account_header">
 						<span id="account" tal:content="account">Account</span>

@@ -18,6 +18,7 @@
 #
 
 import boto.ec2
+import csv
 import logging
 import os
 import sys
@@ -31,8 +32,6 @@ from pyramid.view import view_config
 ONE_YEAR = 31536000 # 1 year, in seconds
 THREE_YEAR = ONE_YEAR * 3
 
-#rows, columns = os.popen('stty size', 'r').read().split()
-
 log = logging.getLogger(__name__)
 
 # adjust boto's logging level.
@@ -43,6 +42,30 @@ def reservation(request):
     creds_file = request.registry.settings['creds.dir'] + "/creds.yaml"
     awscreds = load_yaml(creds_file)
     return { 'results' : sorted(awscreds.keys()) }
+
+@view_config(route_name='reservation_csv', renderer='budget:templates/reservation_csv.pt')
+def reservation_csv(request):
+    creds_file = request.registry.settings['creds.dir'] + "/creds.yaml"
+    awscreds = load_yaml(creds_file)
+    header = [ 'Account', 'Zone', 'Type', 'Running', 'Reserved',
+                'Delta', 'Hourly', 'Up Front', 'Subtotal', 'Purchase' ]
+
+    data = [ ",".join(header) ]
+    for account in awscreds:
+        log.debug('fetching reservations for %s' % account)
+        results = get_current_reservations(
+                    awscreds[account]['access_key'],
+                    awscreds[account]['secret_key'] )
+
+        for key in results:
+            for item in results[key]:
+                item_string = "%s," % account
+                for el in item:
+                    item_string += "%s," % (el)
+                data.append(item_string)
+
+    log.debug(data)
+    return { 'results' : data }
 
 @view_config(route_name='reservation_data', renderer='budget:templates/reservation_data.pt')
 def reservation_data(request):
