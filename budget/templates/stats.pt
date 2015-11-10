@@ -18,13 +18,13 @@
   </head>
 
   <body>
-		<div class='date-selector'>
-				<form method='post' class='date-form'>
-						<select name='date'>
-								<option tal:repeat='date dates'
-												tal:attributes='value date'
-												tal:attributes='selected "selected" if date==selected_date else None'>
-										${date}
+		<div class='selectors'>
+				<form method='post' class='selector-form'>
+						<select tal:repeat='selector selectors' tal:attributes='name selector'>
+								<option tal:repeat='opt selectors[selector]["list"]'
+												tal:attributes='value opt'
+												tal:attributes='selected "selected" if opt==selectors[selector]["selected"] else None'>
+										${opt}
 								</option>
 						</select>
 					<input type='submit' />
