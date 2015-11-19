@@ -10,7 +10,6 @@
 
     <title>OpenShift Statistics and Reporting</title>
 
-    <link href="${request.static_url('budget:static/nv.d3.css')}" rel="stylesheet">
     <!-- Custom styles for this scaffold -->
     <link href="${request.static_url('budget:static/theme.css')}" rel="stylesheet">
   </head>
@@ -19,12 +18,10 @@
 
 	<div>
 			<p>TODO</p>
+			<!--<p><a href="/stats/account">Cost by Account</a></p>-->
+			<p><a href="/stats/activity">Gear Activity Distribution</a></p>
+			<p><a href="/stats/nodes">Node distribution</a></p>
 	</div>
 
-
-    <!-- Bootstrap JavaScript
-    ================================================== -->
-    <!-- Placed at the end of the document so the pages load faster -->
-    <script src="${request.static_url('budget:static/nv.d3.js')}"></script>
   </body>
 </html>

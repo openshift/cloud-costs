@@ -22,7 +22,7 @@ from pyramid.paster import (
 
 from pyramid.scripts.common import parse_vars
 
-from budget.models import (
+from ..models import (
     DBSession,
     AwsDetailedLineItem,
     AwsInvoiceLineItem,
@@ -105,7 +105,7 @@ def load_data():
             year, month = match.groups()
             filedate = datetime(int(year), int(month), 1)
 
-            if filedate > lastdate:
+            if lastdate is None or filedate > lastdate:
                 log.debug("newer data found...")
                 import_csvzip(fn, filedate)
 
