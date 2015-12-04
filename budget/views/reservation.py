@@ -110,7 +110,8 @@ def reservation_purchase(request):
         log.debug("would have called: offerings.purchase(instance_count="+str(data['num'])+", dry_run=True)")
         # See: # https://github.com/boto/boto/blob/develop/boto/ec2/connection.py#3660
         #
-        # offerings.purchase(instance_count=str(data['num']), dry_run=True, limit_price=100)
+        #reservation = offerings.purchase(instance_count=str(data['num']), dry_run=True)
+        #log.debug(reservation)
         return { 'results' : 'FAILURE', 'errors' : None }
     else:
         # TODO: alter the return HTTP code to be 500
@@ -211,7 +212,7 @@ def get_reserved_offerings(ec2conn, target_az='us-east-1a',
             instance_type = instance_type,
             availability_zone = target_az,
             max_duration = duration,
-            product_description = 'Linux/UNIX' )
+            product_description = 'Linux/UNIX (Amazon VPC)' )
 
     cheapest = None
     for offering in offerings:
