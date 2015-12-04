@@ -26,6 +26,7 @@ from ..models import (
     DBSession,
     AwsDetailedLineItem,
     AwsInvoiceLineItem,
+    AwsCostAllocation,
     Base,
     )
 
@@ -94,7 +95,7 @@ def save_checksums(chksums):
     except IOError:
         raise
 
-def load_data():
+def load_detailed_line_items():
     lastdate, = DBSession.query(
                 functions.max(AwsDetailedLineItem.usage_end_date)
             ).one()
@@ -107,11 +108,27 @@ def load_data():
 
             if lastdate is None or filedate > lastdate:
                 log.debug("newer data found...")
-                import_csvzip(fn, filedate)
+                import_detailed_line_items(fn, filedate)
 
+def load_cost_allocation():
+    lastdate, = DBSession.query(
+                functions.max(AwsCostAllocation.billing_period_end_date)
+            ).one()
+
+    for fn in os.listdir(cache_dir):
+        match = re.search('aws-billing-cost-allocation-(\d{4})-(\d{2}).csv.zip', fn)
+        if match:
+            year, month = match.groups()
+            filedate = datetime(int(year), int(month), 1)
+
+            if lastdate is None or filedate > lastdate:
+                log.debug("newer data found...")
+                import_cost_allocation(fn, filedate)
+
+# Detailed Line Items w/ resources & tags
 # "InvoiceID","PayerAccountId","LinkedAccountId","RecordType","RecordId","ProductName","RateId","SubscriptionId","PricingPlanId","UsageType","Operation","AvailabilityZone","ReservedInstance","ItemDescription","UsageStartDate","UsageEndDate","UsageQuantity","BlendedRate","BlendedCost","UnBlendedRate","UnBlendedCost","ResourceId"
 
-def import_csvzip(zipfilename, filedate):
+def import_detailed_line_items(zipfilename, filedate):
     objects = []
 
     zfile = zipfile.ZipFile(cache_dir+'/'+zipfilename, 'r')
@@ -163,6 +180,76 @@ def import_csvzip(zipfilename, filedate):
                 line_item.user_node         = row[23]
 
             objects.append(line_item)
+        log.debug("saving...")
+        DBSession.add_all(objects)
+        transaction.commit()
+
+# Cost Allocation
+# "InvoiceID","PayerAccountId","LinkedAccountId","RecordType","RecordID","BillingPeriodStartDate","BillingPeriodEndDate","InvoiceDate","PayerAccountName","LinkedAccountName","TaxationAddress","PayerPONumber","ProductCode","ProductName","SellerOfRecord","UsageType","Operation","AvailabilityZone","RateId","ItemDescription","UsageStartDate","UsageEndDate","UsageQuantity","BlendedRate","CurrencyCode","CostBeforeTax","Credits","TaxAmount","TaxType","TotalCost","user:environment","user:node"
+
+def import_cost_allocation(zipfilename, filedate):
+    objects = []
+
+    zfile = zipfile.ZipFile(cache_dir+'/'+zipfilename, 'r')
+    zinfo, = zfile.infolist()
+    with zfile.open(zinfo) as zf:
+        csvfile = csv.reader(zf)
+        csvfile.next() # pop the header
+
+        # todo - figure out how to deal with incomplete month data.
+        #
+        # there's a running monthly total for each account that needs to be deleted/updated
+        #
+        # we need to store/cache the timestamp of the last lineitem we see
+        # and/or develop a query to suss it out of the database on start-up
+        for row in csvfile:
+            if len(objects) > 1000:
+                log.debug("bulk saving...")
+                DBSession.add_all(objects)
+                transaction.commit()
+                del objects[:]
+
+            line_item = AwsCostAllocation(
+                invoice_id                = row[0],
+                payer_account_id          = row[1],
+                linked_account_id         = row[2],
+                record_type               = row[3],
+                record_id                 = row[4],
+                billing_period_start_date = process_date(row[5], filedate),
+                billing_period_end_date   = process_date(row[6], filedate),
+                invoice_date              = process_date(row[7], filedate),
+                payer_account_name        = row[8],
+                linked_account_name       = row[9],
+                taxation_address          = row[10],
+                payer_po_number           = row[11],
+                product_code              = row[12],
+                product_name              = row[13],
+                seller_of_record          = row[14],
+                usage_type                = row[15],
+                operation                 = row[16],
+                availability_zone         = row[17],
+                rate_id                   = row[18],
+                item_description          = row[19],
+                usage_start_date          = process_date(row[20], filedate),
+                usage_end_date            = process_date(row[21], filedate),
+                usage_quantity            = row[22],
+                blended_rate              = row[23],
+                currency_code             = row[24],
+                cost_before_tax           = row[25],
+                credits                   = row[26],
+                tax_amount                = row[27],
+                tax_type                  = row[28],
+                total_cost                = row[29],
+            )
+            if len(row) == 31:
+                line_item.user_environment  = row[30]
+            if len(row) == 32:
+                line_item.user_node         = row[31]
+
+            objects.append(line_item)
+        log.debug("saving...")
+        DBSession.add_all(objects)
+        transaction.commit()
 
 def process_date(datestr, default=datetime(1970,01,01,0,0,0)):
     if datestr:
@@ -199,7 +286,7 @@ def main(argv=sys.argv):
     bucket = get_s3_bucket()
     if bucket:
         retrieve_files(bucket)
-    load_data()
+    load_detailed_line_items()
 
     #Base.metadata.create_all(engine)
     #with transaction.manager:

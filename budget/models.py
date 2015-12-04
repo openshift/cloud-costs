@@ -49,6 +49,43 @@ class AwsDetailedLineItem(Base):
     user_environment = Column(String(255), nullable=True)
     user_node = Column(String(255), nullable=True)
 
+class AwsCostAllocation(Base):
+    __tablename__ = 'aws_cost_allocation'
+
+    id = Column(Integer, primary_key=True)
+    invoice_id = Column(String(255), nullable=True)
+    payer_account_id = Column(String(255), nullable=False)
+    linked_account_id = Column(String(255), nullable=True)
+    record_type = Column(String(255), nullable=False)
+    record_id = Column(String(255), nullable=True)
+    billing_period_start_date = Column(DateTime, nullable=False)
+    billing_period_end_date = Column(DateTime, nullable=False)
+    invoice_date = Column(DateTime, nullable=False)
+    payer_account_name = Column(String(255), nullable=False)
+    linked_account_name = Column(String(255), nullable=False)
+    taxation_address = Column(String(255), nullable=False)
+    payer_po_number = Column(String(255), nullable=False)
+    product_code = Column(String(255), nullable=False)
+    product_name = Column(String(255), nullable=True)
+    seller_of_record = Column(String(255), nullable=False)
+    usage_type = Column(String(255), nullable=True)
+    operation = Column(String(255), nullable=True)
+    availability_zone = Column(String(255), nullable=True)
+    rate_id = Column(String(255), nullable=True)
+    item_description = Column(String(255), nullable=True)
+    usage_start_date = Column(DateTime, nullable=False)
+    usage_end_date = Column(DateTime, nullable=False)
+    usage_quantity = Column(Float, nullable=True)
+    blended_rate = Column(Float, nullable=True)
+    currency_code = Column(String(255), nullable=False)
+    cost_before_tax = Column(Float, nullable=True)
+    credits = Column(Float, nullable=True)
+    tax_amount = Column(Float, nullable=True)
+    tax_type = Column(String(255), nullable=False)
+    total_cost = Column(Float, nullable=True)
+    user_environment = Column(String(255), nullable=True)
+    user_node = Column(String(255), nullable=True)
+
 class AwsInvoiceLineItem(Base):
     __tablename__ = 'aws_invoice_line_item'
 

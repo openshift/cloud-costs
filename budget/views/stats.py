@@ -166,3 +166,9 @@ def node_distribution(request):
                     }
                 }
             }
+
+@view_config(route_name='stats', match_param="graph=gearcost", renderer='budget:templates/stats.pt')
+def gear_cost(request):
+    log.debug(request.params)
+
+    return {}
