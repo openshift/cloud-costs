@@ -95,7 +95,7 @@ def save_checksums(chksums):
     except IOError:
         raise
 
-def load_detailed_line_items():
+def load_detailed_line_items(begin=datetime(2000,01,01)):
     lastdate, = DBSession.query(
                 functions.max(AwsDetailedLineItem.usage_end_date)
             ).one()
@@ -106,11 +106,11 @@ def load_detailed_line_items():
             year, month = match.groups()
             filedate = datetime(int(year), int(month), 1)
 
-            if lastdate is None or filedate > lastdate:
-                log.debug("newer data found...")
+            if lastdate is None or (filedate > lastdate and filedate > begin):
+                log.debug("newer data found: %s" % filedate)
                 import_detailed_line_items(fn, filedate)
 
-def load_cost_allocation():
+def load_cost_allocation(begin=datetime(2000,01,01)):
     lastdate, = DBSession.query(
                 functions.max(AwsCostAllocation.billing_period_end_date)
             ).one()
@@ -121,8 +121,8 @@ def load_cost_allocation():
             year, month = match.groups()
             filedate = datetime(int(year), int(month), 1)
 
-            if lastdate is None or filedate > lastdate:
-                log.debug("newer data found...")
+            if lastdate is None or (filedate > lastdate and filedate > begin):
+                log.debug("newer data found: %s" % filedate)
                 import_cost_allocation(fn, filedate)
 
 # Detailed Line Items w/ resources & tags
@@ -286,12 +286,11 @@ def main(argv=sys.argv):
     bucket = get_s3_bucket()
     if bucket:
         retrieve_files(bucket)
-    load_detailed_line_items()
 
-    #Base.metadata.create_all(engine)
-    #with transaction.manager:
-    #    model = MyModel(name='one', value=1)
-    #    DBSession.add(model)
+    # only import the last 6 months of data, maximum.
+    min_import_date = datetime.date.today() - relativedelta(months=6)
+    load_detailed_line_items(min_import_date)
+    load_cost_allocation(min_import_date)
 
 if '__main__' in __name__:
     try:
