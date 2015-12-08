@@ -33,6 +33,9 @@ from ..models import (
 s3_bucket_name = 'primary_billing_bucket'
 checksum_filename = 'checksums.json'
 
+# How many records to commit in a single transaction.
+COMMIT_THRESHOLD = 100000
+
 # connect to AWS
 # look up S3 Bucket
 # list files
@@ -106,7 +109,7 @@ def load_detailed_line_items(begin=datetime(2000,01,01)):
             year, month = match.groups()
             filedate = datetime(int(year), int(month), 1)
 
-            if lastdate is None or (filedate > lastdate and filedate > begin):
+            if filedate > begin and (lastdate is None or filedate > lastdate):
                 log.debug("newer data found: %s" % filedate)
                 import_detailed_line_items(fn, filedate)
 
@@ -121,7 +124,7 @@ def load_cost_allocation(begin=datetime(2000,01,01)):
             year, month = match.groups()
             filedate = datetime(int(year), int(month), 1)
 
-            if lastdate is None or (filedate > lastdate and filedate > begin):
+            if filedate > begin and (lastdate is None or filedate > lastdate):
                 log.debug("newer data found: %s" % filedate)
                 import_cost_allocation(fn, filedate)
 
@@ -144,22 +147,22 @@ def import_detailed_line_items(zipfilename, filedate):
         # we need to store/cache the timestamp of the last lineitem we see
         # and/or develop a query to suss it out of the database on start-up
         for row in csvfile:
-            if len(objects) > 1000:
+            if len(objects) > COMMIT_THRESHOLD:
                 log.debug("bulk saving...")
                 DBSession.add_all(objects)
                 transaction.commit()
                 del objects[:]
 
             line_item = AwsDetailedLineItem(
-                invoice_id        = int(row[0]),
-                payer_account_id  = int(row[1]),
-                linked_account_id = int(row[2]),
+                invoice_id        = row[0],
+                payer_account_id  = row[1],
+                linked_account_id = row[2],
                 record_type       = row[3],
-                record_id         = int(row[4]),
+                record_id         = row[4],
                 product_name      = row[5],
                 rate_id           = row[6],
-                subscription_id   = int(row[7]),
-                pricing_plan_id   = int(row[8]),
+                subscription_id   = row[7],
+                pricing_plan_id   = row[8],
                 usage_type        = row[9],
                 operation         = row[10],
                 availability_zone = row[11],
@@ -179,6 +182,31 @@ def import_detailed_line_items(zipfilename, filedate):
             if len(row) == 24:
                 line_item.user_node         = row[23]
 
+            if row[3] == 'InvoiceTotal':
+                DBSession.add(AwsInvoiceLineItem (
+                    invoice_id        = row[0],
+                    payer_account_id  = row[1],
+                    linked_account_id = row[2],
+                    record_type       = row[3],
+                    record_id         = row[4],
+                    product_name      = row[5],
+                    rate_id           = row[6],
+                    subscription_id   = row[7],
+                    pricing_plan_id   = row[8],
+                    usage_type        = row[9],
+                    operation         = row[10],
+                    availability_zone = row[11],
+                    reserved_instance = True if row[12] == 'Y' else False,
+                    item_description  = row[13],
+                    usage_start_date  = process_date(row[14], filedate),
+                    usage_end_date    = process_date(row[15], filedate),
+                    usage_quantity    = row[16],
+                    blended_rate      = row[17],
+                    blended_cost      = row[18],
+                    unblended_rate    = row[19],
+                    unblended_cost    = row[20],
+                    resource_id       = row[21],
+                ))
             objects.append(line_item)
         log.debug("saving...")
         DBSession.add_all(objects)
@@ -203,32 +231,32 @@ def import_cost_allocation(zipfilename, filedate):
         # we need to store/cache the timestamp of the last lineitem we see
         # and/or develop a query to suss it out of the database on start-up
         for row in csvfile:
-            if len(objects) > 1000:
+            if len(objects) > COMMIT_THRESHOLD:
                 log.debug("bulk saving...")
                 DBSession.add_all(objects)
                 transaction.commit()
                 del objects[:]
 
             line_item = AwsCostAllocation(
-                invoice_id                = int(row[0]),
-                payer_account_id          = int(row[1]),
-                linked_account_id         = int(row[2]),
+                invoice_id                = row[0],
+                payer_account_id          = row[1],
+                linked_account_id         = row[2],
                 record_type               = row[3],
-                record_id                 = int(row[4]),
+                record_id                 = row[4],
                 billing_period_start_date = process_date(row[5], filedate),
                 billing_period_end_date   = process_date(row[6], filedate),
                 invoice_date              = process_date(row[7], filedate),
                 payer_account_name        = row[8],
                 linked_account_name       = row[9],
                 taxation_address          = row[10],
-                payer_po_number           = int(row[11]),
+                payer_po_number           = row[11],
                 product_code              = row[12],
                 product_name              = row[13],
                 seller_of_record          = row[14],
                 usage_type                = row[15],
                 operation                 = row[16],
                 availability_zone         = row[17],
-                rate_id                   = int(row[18]),
+                rate_id                   = row[18],
                 item_description          = row[19],
                 usage_start_date          = process_date(row[20], filedate),
                 usage_end_date            = process_date(row[21], filedate),
@@ -288,7 +316,7 @@ def main(argv=sys.argv):
         retrieve_files(bucket)
 
     # only import the last 6 months of data, maximum.
-    min_import_date = datetime.date.today() - relativedelta(months=6)
+    min_import_date = datetime.today() - relativedelta(months=6)
     load_detailed_line_items(min_import_date)
     load_cost_allocation(min_import_date)
 

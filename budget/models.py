@@ -1,11 +1,13 @@
 from sqlalchemy import (
+    BigInteger,
+    Boolean,
     Column,
+    DateTime,
     Float,
     Index,
     Integer,
     Text,
-    String,
-    DateTime
+    String
     )
 
 from sqlalchemy.ext.declarative import declarative_base
