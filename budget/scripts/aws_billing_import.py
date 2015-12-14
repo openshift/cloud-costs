@@ -34,7 +34,7 @@ s3_bucket_name = 'primary_billing_bucket'
 checksum_filename = 'checksums.json'
 
 # How many records to commit in a single transaction.
-COMMIT_THRESHOLD = 100000
+COMMIT_THRESHOLD = 10000
 
 # connect to AWS
 # look up S3 Bucket
@@ -109,6 +109,11 @@ def load_detailed_line_items(begin=datetime(2000,01,01)):
             year, month = match.groups()
             filedate = datetime(int(year), int(month), 1)
 
+            if filedate.month == datetime.today().month:
+                # Skip the current month until we figure out how to deal with
+                # resuming loading data later.
+                continue
+
             if filedate > begin and (lastdate is None or filedate > lastdate):
                 log.debug("newer data found: %s" % filedate)
                 import_detailed_line_items(fn, filedate)
@@ -119,10 +124,15 @@ def load_cost_allocation(begin=datetime(2000,01,01)):
             ).one()
 
     for fn in os.listdir(cache_dir):
-        match = re.search('aws-billing-cost-allocation-(\d{4})-(\d{2}).csv.zip', fn)
+        match = re.search('aws-cost-allocation-(\d{4})-(\d{2}).csv', fn)
         if match:
             year, month = match.groups()
             filedate = datetime(int(year), int(month), 1)
+
+            if filedate.month == datetime.today().month:
+                # Skip the current month until we figure out how to deal with
+                # resuming loading data later.
+                continue
 
             if filedate > begin and (lastdate is None or filedate > lastdate):
                 log.debug("newer data found: %s" % filedate)
@@ -207,6 +217,7 @@ def import_detailed_line_items(zipfilename, filedate):
                     unblended_cost    = row[20],
                     resource_id       = row[21],
                 ))
+                transaction.commit()
             objects.append(line_item)
         log.debug("saving...")
         DBSession.add_all(objects)
@@ -215,13 +226,12 @@ def import_detailed_line_items(zipfilename, filedate):
 # Cost Allocation
 # "InvoiceID","PayerAccountId","LinkedAccountId","RecordType","RecordID","BillingPeriodStartDate","BillingPeriodEndDate","InvoiceDate","PayerAccountName","LinkedAccountName","TaxationAddress","PayerPONumber","ProductCode","ProductName","SellerOfRecord","UsageType","Operation","AvailabilityZone","RateId","ItemDescription","UsageStartDate","UsageEndDate","UsageQuantity","BlendedRate","CurrencyCode","CostBeforeTax","Credits","TaxAmount","TaxType","TotalCost","user:environment","user:node"
 
-def import_cost_allocation(zipfilename, filedate):
+def import_cost_allocation(filename, filedate):
     objects = []
 
-    zfile = zipfile.ZipFile(cache_dir+'/'+zipfilename, 'r')
-    zinfo, = zfile.infolist()
-    with zfile.open(zinfo) as zf:
-        csvfile = csv.reader(zf)
+    with open(cache_dir+'/'+filename, 'r') as f:
+        csvfile = csv.reader(f)
+        csvfile.next() # pop the header
         csvfile.next() # pop the header
 
         # todo - figure out how to deal with incomplete month data.
@@ -281,10 +291,12 @@ def import_cost_allocation(zipfilename, filedate):
 
 def process_date(datestr, default=datetime(1970,01,01,0,0,0)):
     if datestr:
-        return datetime.strptime(datestr, "%Y-%m-%d %H:%M:%S")
-    else:
-        return default
-    return None
+        if re.match('-', datestr):
+            return datetime.strptime(datestr, "%Y-%m-%d %H:%M:%S")
+        elif re.match('/', datestr):
+            return datetime.strptime(datestr, "%Y/%m/%d %H:%M:%S")
+
+    return default
 
 def usage(argv):
     cmd = os.path.basename(argv[0])
@@ -316,7 +328,7 @@ def main(argv=sys.argv):
         retrieve_files(bucket)
 
     # only import the last 6 months of data, maximum.
-    min_import_date = datetime.today() - relativedelta(months=6)
+    min_import_date = datetime.today() - relativedelta(months=7)
     load_detailed_line_items(min_import_date)
     load_cost_allocation(min_import_date)
 

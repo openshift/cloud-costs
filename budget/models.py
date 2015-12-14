@@ -27,8 +27,8 @@ class AwsDetailedLineItem(Base):
 
     id = Column(Integer, primary_key=True)
     invoice_id = Column(Integer, nullable=True)
-    payer_account_id = Column(Integer, nullable=False)
-    linked_account_id = Column(Integer, nullable=True)
+    payer_account_id = Column(BigInteger, nullable=False)
+    linked_account_id = Column(BigInteger, nullable=True)
     record_type = Column(String(64), nullable=False)
     record_id = Column(BigInteger, nullable=True)
     product_name = Column(String(255), nullable=True)
@@ -56,8 +56,8 @@ class AwsInvoiceLineItem(Base):
 
     id = Column(Integer, primary_key=True)
     invoice_id = Column(Integer, nullable=True)
-    payer_account_id = Column(Integer, nullable=False)
-    linked_account_id = Column(Integer, nullable=True)
+    payer_account_id = Column(BigInteger, nullable=False)
+    linked_account_id = Column(BigInteger, nullable=True)
     record_type = Column(String(64), nullable=False)
     record_id = Column(BigInteger, nullable=True)
     product_name = Column(String(255), nullable=True)
@@ -85,8 +85,8 @@ class AwsCostAllocation(Base):
 
     id = Column(Integer, primary_key=True)
     invoice_id = Column(String(255), nullable=True)
-    payer_account_id = Column(Integer, nullable=False)
-    linked_account_id = Column(Integer, nullable=True)
+    payer_account_id = Column(BigInteger, nullable=False)
+    linked_account_id = Column(BigInteger, nullable=True)
     record_type = Column(String(64), nullable=False)
     record_id = Column(BigInteger, nullable=True)
     billing_period_start_date = Column(DateTime, nullable=False)
