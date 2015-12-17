@@ -7,14 +7,15 @@ class DiscreteBarChart(Nvd3js):
         return '''
             .x(function(d) { return d.label })
             .y(function(d) { return d.value })
-            .staggerLabels('%(stagger_labels)s')
-            .showValues('%(show_values)s')
+            .staggerLabels(%(stagger_labels)s)
+            .showValues(%(show_values)s)
             .margin({top: %(top_margin)i, right: %(right_margin)i, bottom: %(bottom_margin)i, left: %(left_margin)i})
             .width(%(width)s)
             .height(%(height)s)
-            .showXAxis('%(show_xaxis)s')
-            .showYAxis('%(show_yaxis)s')
+            .showXAxis(%(show_xaxis)s)
+            .showYAxis(%(show_yaxis)s)
             .duration(%(duration)i)
+            .tooltips(%(tooltips)s)
         ''' % dict(
                 stagger_labels=self.stagger_labels,
                 show_values=self.show_values,
@@ -26,20 +27,23 @@ class DiscreteBarChart(Nvd3js):
                 height=self.height,
                 show_xaxis=self.show_xaxis,
                 show_yaxis=self.show_yaxis,
-                duration=self.duration)
+                duration=self.duration,
+                tooltips=self.tooltips,
+            )
 
     def __init__(self, **kwargs):
         self.stagger_labels = 'false'
-        self.show_values = 'true'
+        self.show_values = 'false'
         self.top_margin = 15
         self.right_margin = 10
         self.bottom_margin = 50
         self.left_margin = 60
         self.width = 'null'
         self.height = 'null'
-        self.show_xaxis= 'true'
-        self.show_yaxis= 'true'
+        self.show_xaxis = 'true'
+        self.show_yaxis = 'true'
         self.duration = 250
+        self.tooltips = 'true'
 
         super(DiscreteBarChart, self).__init__(**kwargs)
 
