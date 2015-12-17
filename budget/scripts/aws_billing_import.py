@@ -192,7 +192,7 @@ def import_detailed_line_items(zipfilename, filedate):
             if len(row) == 24:
                 line_item.user_node         = row[23]
 
-            if row[3] == 'InvoiceTotal':
+            if row[3] in [ 'InvoiceTotal', 'AccountTotal', 'StatementTotal']:
                 DBSession.add(AwsInvoiceLineItem (
                     invoice_id        = row[0],
                     payer_account_id  = row[1],
