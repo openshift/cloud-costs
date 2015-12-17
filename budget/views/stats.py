@@ -4,14 +4,17 @@ from pyramid.response import Response
 from pyramid.view import view_config
 
 from sqlalchemy.exc import DBAPIError
+from sqlalchemy import not_
 
 from ..models import *
 from ..util.nvd3js.charts.piechart import PieChart
 from ..util.nvd3js.charts.discretebar import DiscreteBarChart
 
+from decimal import Decimal, getcontext
 import logging
 
 log = logging.getLogger(__name__)
+last_year = datetime.now() - timedelta(days=365)
 
 @view_config(route_name='stats', match_param='graph=default', renderer='budget:templates/stats.pt')
 def stats(request):
@@ -23,7 +26,6 @@ def stats(request):
 def cost_by_account(request):
     log.debug(request.params)
 
-    last_year = datetime.now() - timedelta(days=365)
     data = DBSession.query(
                 AwsInvoiceLineItem.linked_account_id,
                 AwsLinkedAccountId.account_name,
@@ -67,7 +69,11 @@ def cost_by_account(request):
 def gear_activity_distribution(request):
     log.debug(request.params)
 
-    dates = DBSession.query(OpenshiftProfileStats.collection_date.distinct()).all()
+    dates = DBSession.query(
+                OpenshiftProfileStats.collection_date.distinct()
+            ).filter(
+                OpenshiftProfileStats.collection_date >= last_year,
+            ).all()
     dates = sorted(set([ item[0] for item in dates ]))
 
     if 'date' in request.params:
@@ -130,7 +136,11 @@ def gear_activity_distribution(request):
 def node_distribution(request):
     log.debug(request.params)
 
-    dates = DBSession.query(OpenshiftProfileStats.collection_date.distinct()).all()
+    dates = DBSession.query(
+                OpenshiftProfileStats.collection_date.distinct()
+            ).filter(
+                OpenshiftProfileStats.collection_date >= last_year,
+            ).all()
     dates = sorted(set([ item[0] for item in dates ]))
 
     if 'date' in request.params:
@@ -167,8 +177,124 @@ def node_distribution(request):
                 }
             }
 
-@view_config(route_name='stats', match_param="graph=gearcost", renderer='budget:templates/stats.pt')
-def gear_cost(request):
+@view_config(route_name='stats', match_param="graph=v2gearcost", renderer='budget:templates/stats.pt')
+def v2_gear_cost(request):
     log.debug(request.params)
 
-    return {}
+    notes = "This does not factor in amortized RI costs (yet)."
+
+    # TODO: move this to a yaml file
+    v2_account_list = [
+            '359618769746',
+            '650808968249',
+            '670906860104',
+            '843635060166',
+            '581437147696',
+            '497942437747',
+            '045668658042',
+            '884652610271',
+            '922711891673'
+    ]
+
+    # Set precision of Decimal objects
+    getcontext().prec = 4
+
+    #TODO: have this be the intersection of dates in profile stats and invoice stats
+    dates = DBSession.query(
+                OpenshiftProfileStats.collection_date.distinct()
+            ).filter(
+                OpenshiftProfileStats.collection_date >= last_year,
+            ).all()
+    dates = sorted(set([ item[0] for item in dates ]))
+
+    if 'date' in request.params:
+        selected_date = datetime.strptime(request.params['date'], "%Y-%m-%d %H:%M:%S")
+    else:
+        selected_date = max(dates)
+
+    if 'type' in request.params:
+        gear_type = str(request.params['type'])
+    else:
+        gear_type = 'total'
+
+    stats = DBSession.query(
+                    OpenshiftProfileStats.gears_active_count,
+                    OpenshiftProfileStats.gears_total_count,
+                    OpenshiftProfileStats.nodes_count,
+                    OpenshiftProfileStats.profile_name
+            ).filter(
+                    OpenshiftProfileStats.collection_date == selected_date,
+            ).all()
+
+    # TODO: replace with AwsCostAllocation query
+    invoice_date = selected_date.replace(day=1,hour=0,minute=0,second=0)
+    invoices = DBSession.query(
+                AwsCostAllocation.linked_account_id,
+                AwsCostAllocation.total_cost,
+                AwsCostAllocation.usage_start_date,
+            ).filter(
+                AwsCostAllocation.linked_account_id != None,
+                AwsCostAllocation.linked_account_id.in_(v2_account_list),
+                AwsCostAllocation.usage_start_date == invoice_date,
+                AwsCostAllocation.record_type == 'LinkedLineItem',
+                not_(AwsCostAllocation.item_description.like('%Sign up charge for subscription:%'))
+            ).all()
+
+    graph_data = []
+
+    total_v2_cost = Decimal(0)
+    for invoice in invoices:
+        log.debug(invoice)
+        total_v2_cost += Decimal(invoice.total_cost)
+
+    log.debug("Total Cost: %f" % total_v2_cost)
+
+    total_gears = { 'total' : Decimal(0),
+                    'active': Decimal(0),
+                    'nodes' : Decimal(0) }
+    total_per_account = {'total' : {}, 'active': {}, 'nodes': {}}
+
+    for stat in stats:
+        total_gears['total'] += Decimal(stat.gears_total_count)
+        total_gears['active'] += Decimal(stat.gears_active_count)
+        total_gears['nodes'] += Decimal(stat.nodes_count)
+
+        if stat.profile_name in total_per_account.keys():
+            total_per_account['active'][stat.profile_name] += Decimal(stat.gears_active_count)
+            total_per_account['total'][stat.profile_name] += Decimal(stat.gears_total_count)
+            total_per_account['nodes'][stat.profile_name] += Decimal(stat.nodes_count)
+        else:
+            total_per_account['active'][stat.profile_name] = Decimal(stat.gears_active_count)
+            total_per_account['total'][stat.profile_name] = Decimal(stat.gears_total_count)
+            total_per_account['nodes'][stat.profile_name] = Decimal(stat.nodes_count)
+
+    for stat in stats:
+        node_proportion =  total_per_account['nodes'][stat.profile_name] / total_gears['nodes']
+        value = (total_v2_cost * node_proportion) / total_per_account[gear_type][stat.profile_name]
+
+        graph_data.append( { 'label' : stat.profile_name, 'value' : float(value)  })
+
+    log.debug(graph_data)
+    graph = DiscreteBarChart(
+                width=900,
+                height=600,
+                show_values='true',
+                tooltips='false',
+                stagger_labels='true'
+            )
+    graph.data = [{ 'key' : 'Costs Per Gear (%s)' % gear_type, 'values' : graph_data }]
+
+
+    return { 'graph' : graph,
+            'notes' : notes,
+            'selectors' : {
+                    'date' : {
+                        'selected' : selected_date,
+                        'list' : dates,
+                    },
+                    'type' : {
+                        'selected' : gear_type,
+                        'list' : ['active', 'total' ],
+                    }
+                }
+            }

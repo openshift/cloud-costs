@@ -30,7 +30,13 @@
 					<input type='submit' />
 				</form>
 		</div>
+		<br />
 		<div class='d3-chart-container' id='chart'><svg id='d3-svg'></svg></div>
+		<br />
+		<div class='notes'>
+				<h3>Chart Notes:</h3>
+				<p tal:content=notes></p>
+		</div>
 		<script tal:replace='graph' />
   </body>
 </html>
