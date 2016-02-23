@@ -1,0 +1,11 @@
+pyramid>=1.2dev
+transaction
+
+[docs]
+Sphinx
+pylons-sphinx-themes
+
+[testing]
+WebTest
+nose
+coverage
