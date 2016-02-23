@@ -12,8 +12,6 @@
   </head>
 
   <body>
-		<div tal:repeat="line results">
-				<p tal:content='line'> </p>
-		</div>
+		<div tal:repeat="line results" tal:content='line'></div>
   </body>
 </html>
