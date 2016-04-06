@@ -207,6 +207,8 @@ def v2_gear_cost(request):
             ).all()
     dates = sorted(set([ item[0] for item in dates ]))
 
+    log.debug(dates)
+
     if 'date' in request.params:
         selected_date = datetime.strptime(request.params['date'], "%Y-%m-%d %H:%M:%S")
     else:
@@ -226,6 +228,8 @@ def v2_gear_cost(request):
                     OpenshiftProfileStats.collection_date == selected_date,
             ).all()
 
+    log.debug(stats)
+
     # TODO: replace with AwsCostAllocation query
     invoice_date = selected_date.replace(day=1,hour=0,minute=0,second=0)
     invoices = DBSession.query(
@@ -239,6 +243,8 @@ def v2_gear_cost(request):
                 AwsCostAllocation.record_type == 'LinkedLineItem',
                 not_(AwsCostAllocation.item_description.like('%Sign up charge for subscription:%'))
             ).all()
+
+    log.debug(invoices)
 
     graph_data = []
 
@@ -275,6 +281,7 @@ def v2_gear_cost(request):
         graph_data.append( { 'label' : stat.profile_name, 'value' : float(value)  })
 
     log.debug(graph_data)
+
     graph = DiscreteBarChart(
                 width=900,
                 height=600,

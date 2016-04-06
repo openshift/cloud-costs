@@ -59,16 +59,21 @@ def get_s3_bucket():
     log.debug("Fetching bucket...")
     return conn.get_bucket(s3_bucket_name)
 
-def retrieve_files(bucket):
-    chksum_file = load_checksums()
-
-    keys = bucket.list()
+def prune_logs(bucket):
     for key in bucket.list():
         if re.search('logs\/', key.name):
             today = (date.today() - relativedelta(months=1)).strftime('%Y-%m-%d')
             if key.name[5:15] < today:
                 log.debug('Deleting %s' % key.name)
                 key.delete()
+
+
+def retrieve_files(bucket):
+    chksum_file = load_checksums()
+
+    keys = bucket.list()
+    for key in bucket.list():
+        if re.search('logs\/', key.name):
             continue
 
         #check etags/md5
@@ -325,12 +330,16 @@ def main(argv=sys.argv):
 
     bucket = get_s3_bucket()
     if bucket:
+        prune_logs(bucket)
         retrieve_files(bucket)
 
     # only import the last 6 months of data, maximum.
     min_import_date = datetime.today() - relativedelta(months=7)
+    log.debug(min_import_date)
     load_detailed_line_items(min_import_date)
+    log.debug("Done with detailed line items")
     load_cost_allocation(min_import_date)
+    log.debug("Done with cost allocation")
 
 if '__main__' in __name__:
     try:

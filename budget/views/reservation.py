@@ -19,18 +19,28 @@
 
 import boto.ec2
 import csv
+import dateutil.parser
 import logging
 import os
 import sys
 import yaml
 
 from collections import defaultdict
+from datetime import datetime, timedelta
 
 from pyramid.response import Response
 from pyramid.view import view_config
 
 ONE_YEAR = 31536000 # 1 year, in seconds
 THREE_YEAR = ONE_YEAR * 3
+
+# This is the number of days left in an RI.
+#
+# If the RI is about to expire, we don't count it as an active RI for purposes
+# of making purchasing decisions.
+#
+# TODO: update the templates and html to enable passing in user-defined values.
+DEFAULT_EXPIRATION_THRESHOLD = 60 # days
 
 log = logging.getLogger(__name__)
 
@@ -77,10 +87,16 @@ def reservation_data(request):
                 header = [ 'Zone', 'Type', 'Running', 'Reserved',
                         'Delta', 'Hourly', 'Up Front', 'Subtotal', 'Purchase' ]
 
+                if 'threshold' in data:
+                    expiration_threshold = data['threshold']
+                else:
+                    expiration_threshold = DEFAULT_EXPIRATION_THRESHOLD
+
                 log.debug('fetching reservations for %s' % account)
                 results = get_current_reservations(
                                 awscreds[account]['access_key'],
-                                awscreds[account]['secret_key'] )
+                                awscreds[account]['secret_key'],
+                                expiration_threshold)
 
                 return { 'account' : account,
                          'header'  : header,
@@ -106,7 +122,6 @@ def reservation_purchase(request):
                                         instance_type=data['type'])
 
     if offerings:
-        log.debug(offerings.describe())
         log.debug("would have called: offerings.purchase(instance_count="+str(data['num'])+", dry_run=True)")
         # See: # https://github.com/boto/boto/blob/develop/boto/ec2/connection.py#3660
         #
@@ -126,7 +141,9 @@ def load_yaml(filename):
         raise
     return yamlfile
 
-def get_current_reservations(access_key, secret_access_key):
+def get_current_reservations(access_key, secret_access_key,
+        expiration_threshold=DEFAULT_EXPIRATION_THRESHOLD):
+
     regions = boto.ec2.regions()
     results = {}
 
@@ -139,7 +156,8 @@ def get_current_reservations(access_key, secret_access_key):
                 aws_access_key_id=access_key,
                 aws_secret_access_key=secret_access_key)
 
-        diff, totals = get_reservation_stats(ec2conn, region)
+        diff, totals = get_reservation_stats(ec2conn, region,
+                expiration_threshold)
         if not diff:
             continue
 
@@ -155,7 +173,8 @@ def get_current_reservations(access_key, secret_access_key):
         results[region] = get_display_results(diff, offerings, totals, region)
     return results
 
-def get_reservation_stats(ec2conn, region):
+def get_reservation_stats(ec2conn, region,
+        expiration_threshold=DEFAULT_EXPIRATION_THRESHOLD):
     running_instances  = {}
     reserved_instances = {}
     totals             = {}
@@ -188,9 +207,17 @@ def get_reservation_stats(ec2conn, region):
             totals[(size,az)] = defaultdict(lambda: 0)
 
         if ri.state == 'active':
+            days_left = calc_days_left(ri)
+
             # do a count of each type/az combination
-            reserved_instances[(size,az)] = reserved_instances.get((size,az),0)+ri.instance_count
-            totals[(size,az)]['reserved'] = totals[(size,az)].get('reserved',0)+ri.instance_count
+            if days_left < expiration_threshold:
+                # don't count RIs beneath the expiration threshold
+                reserved_instances[(size,az)] = reserved_instances.get((size,az),0)
+                totals[(size,az)]['reserved'] = totals[(size,az)].get('reserved',0)
+            else:
+                reserved_instances[(size,az)] = reserved_instances.get((size,az),0)+ri.instance_count
+                totals[(size,az)]['reserved'] = totals[(size,az)].get('reserved',0)+ri.instance_count
+
 
     # for each type/az combination, the diff will be
     # - postiive if we have unused reservations
@@ -204,6 +231,12 @@ def get_reservation_stats(ec2conn, region):
             diff[placement] = -running_instances[placement]
 
     return diff, totals
+
+def calc_days_left(reserved_instance):
+    start_date = dateutil.parser.parse(reserved_instance.start)
+    end_date   = start_date + timedelta(0,reserved_instance.duration)
+    today      = datetime.now(dateutil.tz.tzlocal())
+    return (end_date - today).days
 
 def get_reserved_offerings(ec2conn, target_az='us-east-1a',
         instance_type='m3.large', duration=ONE_YEAR):
