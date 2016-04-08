@@ -1,0 +1,111 @@
+
+.aws_account_table {
+		padding: 0 0 0 0;
+		margin: 0 0 15px 0;
+		background-color: #ffb366;
+		width: 100%;
+}
+.aws_account_name {
+		text-align: left;
+		padding: 0 0 0 10px;
+}
+.aws_account_total {
+		float: right;
+		margin: 0 0 0 0;
+		padding: 0 0 0 0;
+}
+
+.aws_product_table {
+		padding: 0 0 0 5px;
+		margin: -1px 0 0 0;
+		width: 100%;
+		background-color: #ffdd99;
+}
+.aws_product_name {
+		text-align: left;
+		padding: 0 0 0 10px;
+}
+.aws_product_total {
+		float: right;
+		margin: 0 0 0 0;
+		padding: 0 0 0 0;
+}
+
+.aws_lineitem_head {
+		padding: 0 0 0 0;
+		margin: 0 0 0 0;
+		background-color: #fff5cc;
+}
+.aws_lineitem_list {
+		background-color: #fff;
+		margin: 0 0 0 0;
+		padding-top: 5px;
+		padding-bottom: 5px;
+		padding-left: 0px;
+		line-height: 2em;
+}
+
+.aws_usage_type {
+		margin: 0 0 0 0;
+		padding: 4px 15px 4px 15px;
+}
+.aws_item_description {
+		margin: 0 0 0 0;
+		padding: 4px 15px 4px 15px;
+}
+.aws_usage_quantity {
+		margin: 0 0 0 -1px;
+		padding: 4px 15px 4px 15px;
+}
+.aws_blended_rate {
+		margin: 0 0 0 -1px;
+		padding: 4px 15px 4px 15px;
+}
+.aws_total_cost {
+		margin: 0 0 0 -1px;
+		padding: 4px 15px 4px 15px;
+}
+
+.header .sign:after{
+		content:"+";
+		float: left;
+		margin: 0 0 0 0;
+		padding: 0 0 0 0;
+		display: inline;
+}
+
+.header.expand .sign:after{
+		content:"-";
+		float: left;
+		margin: 0 0 0 0;
+		padding: 0 0 0 0;
+		display: inline;
+}
+
+.selectors {
+		margin: 0 0 0 0;
+		padding: 0 0 0 0;
+		height: 50px;
+}
+
+.selector-label {
+		margin: 0 0 0 0;
+		padding: 0 0 0 0;
+		display: inline-block;
+		vertical-align: baseline;
+}
+
+.selector-dropdown {
+		margin: 0 0 0 0;
+		padding: 0 0 0 0;
+		width: 90px;
+		background-color: #FFF;
+		display: inline-block;
+		vertical-align: 15%;
+}
+.selector-submit {
+		margin: 0 0 0 0;
+		padding: 0 0 0 0;
+		display: inline-block;
+		vertical-align: 115%;
+}
