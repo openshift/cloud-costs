@@ -24,6 +24,6 @@ def main(global_config, **settings):
     config.add_route('reservation_csv', '/reservation_csv')
     config.add_route('reservation_data', '/reservation_data')
     config.add_route('reservation_purchase', '/reservation_purchase')
-    config.add_route('cost_allocation', '/cost_allocation')
+    config.add_route('cost_allocation', '/cost_allocation/{type}')
     config.scan()
     return config.make_wsgi_app()

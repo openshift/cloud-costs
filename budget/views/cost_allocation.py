@@ -18,8 +18,8 @@ last_year = datetime.now() - timedelta(days=365)
 
 locale.setlocale(locale.LC_ALL, "en_US")
 
-@view_config(route_name='cost_allocation', renderer='budget:templates/cost_allocation.pt')
-def cost_allocation(request):
+@view_config(route_name='cost_allocation', match_param='type=by_account', renderer='budget:templates/cost_allocation.pt')
+def cost_allocation_by_account(request):
     log.debug(request.params)
 
     dates = DBSession.query(
@@ -27,9 +27,9 @@ def cost_allocation(request):
             ).filter(
                 OpenshiftProfileStats.collection_date >= last_year,
             ).all()
-    dates = sorted(set([ item[0] for item in dates ]))
+    dates = sorted(set([ item[0].strftime("%Y-%m-%d") for item in dates ]))
     if 'date' in request.params:
-        selected_date = datetime.strptime(request.params['date'], "%Y-%m-%d %H:%M:%S")
+        selected_date = datetime.strptime(request.params['date'], "%Y-%m-%d")
     else:
         selected_date = max(dates)
 
@@ -56,10 +56,12 @@ def cost_allocation(request):
                 "<tr class='aws_lineitem_list'>",
                 "<td class='aws_usage_type'>%s</td>" % line.usage_type,
                 "<td class='aws_item_description'>%s</td>" % line.item_description,
-                "<td class='aws_usage_quantity'>%s</td>" % locale.format("%i",
+                "<td class='aws_usage_quantity'>%s</td>" % locale.format("%.8f",
                                                                         line.usage_quantity,
-                                                                        grouping=True),
-                "<td class='aws_blended_rate'>$%.2f</td>" % Decimal(line.blended_rate),
+                                                                        grouping=True).rstrip('0').rstrip('.'),
+                "<td class='aws_blended_rate'>$%s</td>" % locale.format("%.3f",
+                                                                        line.blended_rate,
+                                                                        grouping=True).rstrip('0').rstrip('.'),
                 "<td class='aws_total_cost'>$%.2f</td>" % Decimal(line.total_cost),
                 "</tr>"])
 
@@ -92,6 +94,10 @@ def cost_allocation(request):
             totals[account][product] = locale.format("%.2f",
                                                     totals[account][product],
                                                     grouping=True)
+
+    # munge selected_date to avoid presenting "dd/mm/yy 00:00:00" in the UI
+    if not isinstance(selected_date, str):
+        selected_date = selected_date.strftime("%Y-%m-%d"),
 
     return { 'data' : data,
             'totals' : totals,

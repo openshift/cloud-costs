@@ -12,7 +12,10 @@
 
     <link href="${request.static_url('budget:static/theme.css')}" rel="stylesheet">
     <link href="${request.static_url('budget:static/cost_allocation.css')}" rel="stylesheet">
+
 		<script src="${request.static_url('budget:static/jquery-2.1.4.min.js')}"></script>
+		<script src="${request.static_url('budget:static/jquery-ui-1.11.4/jquery-ui.min.js')}"></script>
+    <link href="${request.static_url('budget:static/jquery-ui-1.11.4/jquery-ui.min.css')}" rel="stylesheet">
   </head>
   <body>
 		<div class='selectors'>
@@ -28,13 +31,16 @@
 					<input type='submit' class="selector-submit" />
 				</form>
 		</div>
+		<div class="toggle-div">
+				  <span class="toggle-span">Toggle All</span>
+		</div>
 		<div>
 				<table tal:repeat="account sorted(data)" class="aws_account_table">
 						<thead>
 								<tr class="header expand">
 										<th class="aws_account_name">
 												<span class="sign font-bold"></span>
-												<span class="aws_account_name font-semi-bold">${account}<span>
+												<span class="aws_account_name font-semi-bold">${account}</span>
 												<span class="aws_account_total font-semi-bold" tal:condition="account != 'Total'">$ ${totals[account]['account_total']}</span>
 										</th>
 								</tr>
@@ -55,7 +61,7 @@
 																		<th class="aws_lineitem_head font-semi-bold">Usage Type</th>
 																		<th class="aws_lineitem_head font-semi-bold">Description</th>
 																		<th class="aws_lineitem_head font-semi-bold">Usage Quantity</th>
-																		<th class="aws_lineitem_head font-semi-bold">Blended Rate</th>
+																		<th class="aws_lineitem_head font-semi-bold" title="Blended rates are averaged rates based on reservations, on-demand, and tiered pricing.">Blended Rate&dagger;</th>
 																		<th class="aws_lineitem_head font-semi-bold">Total Cost</th>
 																</tr>
 														</thead>
@@ -74,8 +80,16 @@
 						$('thead').click(function(){
 								$(this).siblings('tbody').slideToggle(100); 
 						})
-						$('.header').click();
+						$('.toggle-div').click(function(){
+								$(this).toggleClass('expand');
+								$('.header').click();
+						});
 
+						$('.toggle-div').click();
+
+						$(function() {
+								$( document ).tooltip({  tooltipClass: "tooltip", });
+						});
 				</script>
 		</div>
   </body>

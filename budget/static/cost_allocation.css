@@ -1,14 +1,19 @@
+body {
+		background-color: #faffff;
+}
 
 .aws_account_table {
 		padding: 0 0 0 0;
 		margin: 0 0 15px 0;
-		background-color: #ffb366;
+		background-color: #ffcc99;
 		width: 100%;
 }
+
 .aws_account_name {
 		text-align: left;
 		padding: 0 0 0 10px;
 }
+
 .aws_account_total {
 		float: right;
 		margin: 0 0 0 0;
@@ -19,12 +24,14 @@
 		padding: 0 0 0 5px;
 		margin: -1px 0 0 0;
 		width: 100%;
-		background-color: #ffdd99;
+		background-color: #ffe6b3;
 }
+
 .aws_product_name {
 		text-align: left;
 		padding: 0 0 0 10px;
 }
+
 .aws_product_total {
 		float: right;
 		margin: 0 0 0 0;
@@ -36,6 +43,7 @@
 		margin: 0 0 0 0;
 		background-color: #fff5cc;
 }
+
 .aws_lineitem_list {
 		background-color: #fff;
 		margin: 0 0 0 0;
@@ -49,63 +57,103 @@
 		margin: 0 0 0 0;
 		padding: 4px 15px 4px 15px;
 }
+
 .aws_item_description {
 		margin: 0 0 0 0;
 		padding: 4px 15px 4px 15px;
 }
+
 .aws_usage_quantity {
 		margin: 0 0 0 -1px;
 		padding: 4px 15px 4px 15px;
+		text-align: right;
 }
+
 .aws_blended_rate {
 		margin: 0 0 0 -1px;
 		padding: 4px 15px 4px 15px;
+		text-align: right;
 }
+
 .aws_total_cost {
 		margin: 0 0 0 -1px;
 		padding: 4px 15px 4px 15px;
+		text-align: right;
+}
+
+.header {
+		margin: 0 0 0 0;
+		padding: 0 0 0 0;
 }
 
 .header .sign:after{
 		content:"+";
 		float: left;
-		margin: 0 0 0 0;
-		padding: 0 0 0 0;
 		display: inline;
 }
 
 .header.expand .sign:after{
 		content:"-";
 		float: left;
-		margin: 0 0 0 0;
-		padding: 0 0 0 0;
 		display: inline;
 }
 
 .selectors {
-		margin: 0 0 0 0;
+		margin: 0 0 15px 0;
 		padding: 0 0 0 0;
 		height: 50px;
+		float: left;
 }
 
 .selector-label {
 		margin: 0 0 0 0;
 		padding: 0 0 0 0;
 		display: inline-block;
-		vertical-align: baseline;
 }
 
 .selector-dropdown {
 		margin: 0 0 0 0;
-		padding: 0 0 0 0;
-		width: 90px;
+		padding: 0 3px 0 0;
 		background-color: #FFF;
 		display: inline-block;
-		vertical-align: 15%;
+		vertical-align: 2px;
 }
+
 .selector-submit {
 		margin: 0 0 0 0;
-		padding: 0 0 0 0;
+		padding: 2px 2px 2px 2px;
 		display: inline-block;
-		vertical-align: 115%;
+		background-color: #DDD;
+		border: 1px outset #AAA;
+		vertical-align: 15px;
+		font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
+
+.toggle-div {
+		margin: 0 0 15px 0;
+		padding: 0 0 0 0;
+		height: 50px;
+		width: auto;
+		float: right;
+		display: inline-block;
+}
+
+.toggle-span {
+		margin: 0 0 0 0%;
+		padding: 2px 2px 2px 2px;
+		background-color: #DDD;
+		border: 1px outset #AAA;
+		vertical-align: -15px;
+		font-size: 80%;
+};
+
+.tooltip {
+		padding: 8px;
+		postition: relative;
+		display: none;
+		z-index: 9999;
+		max-width: 300px;
+		-webkit-box-shadow: 0 0 5px #aaa;
+		box-shadow: 0 0 5px #aaa;
+}
+
