@@ -117,39 +117,6 @@ class AwsCostAllocation(Base):
     user_environment = Column(String(255), nullable=True)
     user_node = Column(String(255), nullable=True)
 
-class AwsLinkedAccountId(Base):
-    __tablename__ = 'aws_linked_account_id'
-
-    id = Column(Integer, primary_key=True)
-    linked_account_id = Column(String(255), nullable=True, unique=True)
-    account_name = Column(String(255), nullable=True)
-
-class Budget(Base):
-    __tablename__ = 'budget'
-
-    id = Column(Integer, primary_key=True)
-    fiscal_year = Column(Integer, nullable=False)
-    quarter = Column(Integer, nullable=False)
-    qtr_start = Column(DateTime, nullable=False)
-    qtr_end = Column(DateTime, nullable=False)
-    budget = Column(Float, nullable=False)
-
-class MiscExpenses(Base):
-    __tablename__ = 'misc_expenses'
-
-    id = Column(Integer, primary_key=True)
-    date = Column(DateTime, nullable=False)
-    vendor = Column(String(255), nullable=False)
-    amount = Column(Float, nullable=False)
-    amortizable = Column(Integer, nullable=True)
-
-class NodeCapacity(Base):
-    __tablename__ = 'node_capacity'
-
-    id = Column(Integer, primary_key=True)
-    node_type = Column(String(255), nullable=False)
-    active_capacity = Column(Integer, nullable=True)
-
 class OpenshiftProfileStats(Base):
     __tablename__ = 'openshift_profile_stats'
 
@@ -162,6 +129,21 @@ class OpenshiftProfileStats(Base):
     gears_stopped_count = Column(Integer, nullable=True)
     gears_unknown_count = Column(Integer, nullable=True)
     gears_total_count = Column(Integer, nullable=True)
+
+#class OpenshiftV3ProfileStats(Base):
+#    __tablename__ = 'openshift_v3_profile_stats'
+#
+#    id = Column(Integer, primary_key=True)
+#    collection_date = Column(DateTime, nullable=False)
+
+class AwsAccountMetadata(Base):
+    __tablename__ = 'aws_account_metadata'
+
+    id = Column(Integer, primary_key=True)
+    account_id = Column(String(255), nullable=True, unique=True)
+    account_name = Column(String(255), nullable=True)
+    tags = Column(Text(), nullable=True)
+
 
 #class MyModel(Base):
 #    __tablename__ = 'models'
