@@ -1,0 +1,76 @@
+Metadata-Version: 1.0
+Name: js.jqgrid
+Version: 4.4.4
+Summary: Fanstatic packaging of jqgrid
+Home-page: https://github.com/do3cc/js.jqgrid
+Author: Fanstatic Developers
+Author-email: fanstatic@googlegroups.com
+License: UNKNOWN
+Description: js.jqgrid
+        *********
+        
+        Introduction
+        ============
+        
+        This library packages `jqgrid`_ for `fanstatic`_.
+        
+        .. _`fanstatic`: http://fanstatic.org
+        .. _`jqgrid`: http://www.trirand.com/jqgridwiki/
+        
+        To include the grid, call 
+        
+            js.jqgrid.jqgrid.need()
+        
+        then you also need to add
+        a language, for example 
+        
+            js.jqgrid.jqgrid_i18n_en.need()
+        
+        This requires integration between your web framework and ``fanstatic``,
+        and making sure that the original resources (shipped in the ``resources``
+        directory in ``js.jqgrid``) are published to some URL.
+        
+        The provided jqgrid code is licenced under MIT and GPL, the integration code
+        uses a BSD Licence.
+        
+        
+        CHANGES
+        *******
+        
+        4.4.4 (2013-03-02)
+        ==================
+        
+        - Updated jqGrid to version 4.4.4. [agronholm]
+        
+        
+        4.4.1-1 (2012-09-22)
+        ==================
+        
+        - Added missing locales to js/jqgrid/__init__.py [agronholm]
+        
+        
+        4.4.1 (2012-09-22)
+        ==================
+        
+        - Updated jqGrid to version 4.4.1. [agronholm]
+        
+        
+        4.3.1_1 (2012-02-07)
+        ====================
+        
+        - Brown Bag release. setuptools-git was missing [do3cc]
+        
+        
+        4.3.1 (2012-02-07)
+        ==================
+        
+        - Updated jqGrid to version 4.3.1. [agronholm]
+        
+        
+        4.1.0 (2011-06-19)
+        ==================
+        
+        - Initial release. [do3cc]
+        
+Keywords: jqgrid
+Platform: UNKNOWN

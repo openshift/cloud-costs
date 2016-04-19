@@ -1,0 +1,10 @@
+<html metal:use-macro="main.macros['master']">
+  <body>
+    <div metal:fill-slot="main">
+      <div class="ui-pager" tal:content="structure pager" />
+      <table class="layout-grid" tal:content="structure fs.render()" />
+      <p class="fa_field" tal:content="structure actions.buttons(request)">
+      </p>
+    </div>
+  </body>
+</html>

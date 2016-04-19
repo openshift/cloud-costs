@@ -14,10 +14,28 @@ def main(global_config, **settings):
     DBSession.configure(bind=engine)
     Base.metadata.bind = engine
     config = Configurator(settings=settings)
+
+    # pyramid_chameleon's configuration
     config.include('pyramid_chameleon')
+
+    # pyramid_formalchemy's configuration
+    config.include('pyramid_formalchemy')
+
+    # Add fanstatic tween
+    config.include('pyramid_fanstatic')
+
+    # Adding the jquery libraries
+    config.include('fa.jquery')
+
+    # register an admin UI
+    config.formalchemy_admin('admin', package='budget',
+            view='fa.jquery.pyramid.ModelView')
+
+    # register static assets
     config.add_static_view('static', 'static', cache_max_age=3601)
+
+    # all other routes...
     config.add_route('root', '/')
-    #config.add_route('stats', '/stats')
     config.add_route('stats', '/stats/{graph}')
     config.add_route('myview', '/myview')
     config.add_route('reservation', '/reservation')
@@ -25,5 +43,6 @@ def main(global_config, **settings):
     config.add_route('reservation_data', '/reservation_data')
     config.add_route('reservation_purchase', '/reservation_purchase')
     config.add_route('cost_allocation', '/cost_allocation/{type}')
+
     config.scan()
     return config.make_wsgi_app()

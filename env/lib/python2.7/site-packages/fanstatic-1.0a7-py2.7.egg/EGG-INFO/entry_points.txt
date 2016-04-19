@@ -1,0 +1,24 @@
+[console_scripts]
+fanstatic-compile = fanstatic.compiler:compile_resources
+
+[fanstatic.compilers]
+coffee = fanstatic.compiler:COFFEE_COMPILER
+less = fanstatic.compiler:LESS_COMPILER
+sass = fanstatic.compiler:SASS_COMPILER
+
+[fanstatic.injectors]
+topbottom = fanstatic.injector:TopBottomInjector
+
+[fanstatic.minifiers]
+closure = fanstatic.compiler:CLOSURE_MINIFIER
+cssmin = fanstatic.compiler:CSSMIN_MINIFIER
+jsmin = fanstatic.compiler:JSMIN_MINIFIER
+
+[paste.app_factory]
+publisher = fanstatic:make_publisher
+serf = fanstatic:make_serf
+
+[paste.filter_app_factory]
+fanstatic = fanstatic:make_fanstatic
+injector = fanstatic:make_injector
+

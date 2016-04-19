@@ -1,0 +1,12 @@
+<html metal:use-macro="main.macros['master']">
+  <body>
+    <div metal:fill-slot="main">
+      <div tal:content="structure fs.render()" />
+      <div>
+      <p class="fa_field" tal:content="structure actions.buttons(request)">
+      </p>
+      </div>
+    </div>
+  </body>
+</html>
+

@@ -1,0 +1,5 @@
+
+      # -*- Entry points: -*-
+      [pyramid.scaffold]
+      pyramid_fanstatic=pyramid_fanstatic.scaffolds:PyramidFanstaticTemplate
+      

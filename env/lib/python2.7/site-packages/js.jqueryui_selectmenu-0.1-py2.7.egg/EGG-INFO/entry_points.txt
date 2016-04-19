@@ -1,0 +1,3 @@
+[fanstatic.libraries]
+jqueryui_selectmenu = js.jqueryui_selectmenu:library
+

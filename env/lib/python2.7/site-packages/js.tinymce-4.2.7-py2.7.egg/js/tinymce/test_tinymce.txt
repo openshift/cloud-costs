@@ -1,0 +1,9 @@
+How to use?
+===========
+
+
+You can import tinymce from ``js.tinymce`` and ``need`` it where you want
+these resources to be included on a page::
+
+  >>> from js.tinymce import tinymce
+  >>> tinymce.need()

@@ -1,0 +1,10 @@
+How to use?
+===========
+
+
+You can import ``jquery_form`` from ``js.jquery_form`` and ``need`` it where you want
+these resources to be included on a page::
+
+  >>> from js.jquery_form import jquery_form 
+  >>> jquery_form.need()
+

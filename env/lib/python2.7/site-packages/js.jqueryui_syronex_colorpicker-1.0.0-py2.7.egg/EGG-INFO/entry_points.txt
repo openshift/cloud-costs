@@ -1,0 +1,3 @@
+[fanstatic.libraries]
+syronex_colorpicker = js.jqueryui_syronex_colorpicker:library
+

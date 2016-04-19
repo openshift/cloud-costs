@@ -1,0 +1,3 @@
+[fanstatic.libraries]
+jquery_jgrowl = js.jquery_jgrowl:library
+

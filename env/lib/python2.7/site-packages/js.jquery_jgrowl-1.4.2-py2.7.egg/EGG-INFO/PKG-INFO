@@ -1,0 +1,53 @@
+Metadata-Version: 1.0
+Name: js.jquery-jgrowl
+Version: 1.4.2
+Summary: fanstatic jQuery jGrowl.
+Home-page: UNKNOWN
+Author: Fanstatic Developers
+Author-email: fanstatic@googlegroups.com
+License: BSD
+Description: js.jquery_jgrowl
+        ****************
+        
+        Introduction
+        ============
+        
+        This library packages `jQuery jGrowl`_ for `fanstatic`_. It is aware of different modes (normal, minified).
+        
+        .. _`fanstatic`: http://fanstatic.org
+        .. _`jQuery jGrowl`: http://www.stanlemon.net/projects/jgrowl.html
+        
+        This requires integration between your web framework and ``fanstatic``,
+        and making sure that the original resources (shipped in the ``resources``
+        directory in ``js.jquery_jgrowl``) are published to some URL.
+        
+        How to use?
+        ===========
+        
+        You can import jQuery jGrowl from ``js.jquery_jgrowl`` and ``need`` it
+        where you want these resources to be included on a page::
+        
+          >>> from js.jquery_jgrowl import jquery_jgrowl
+          >>> jquery_jgrowl.need()
+        
+        
+        CHANGES
+        *******
+        
+        1.4.2 (2015-04-21)
+        ==================
+        
+        - Update to jgrowl 1.4.2.
+        
+        1.2.5-1 (2012-02-16)
+        ====================
+        
+        - We were using the wrong versions of the minified library, it
+          wasn't 1.2.5. Fixed.
+        
+        1.2.5 (2011-01-06)
+        ==================
+        
+        - Initial release.
+        
+Platform: UNKNOWN

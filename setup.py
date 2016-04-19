@@ -10,11 +10,14 @@ with open(os.path.join(here, 'CHANGES.txt')) as f:
 
 requires = [
     'boto',
+    'fa.jquery',
     'mysql-python',
     'paramiko',
     'pyramid',
     'pyramid_chameleon',
     'pyramid_debugtoolbar',
+    'pyramid_fanstatic',
+    'pyramid_formalchemy',
     'pyramid_tm',
     'python-dateutil',
     'pyyaml',

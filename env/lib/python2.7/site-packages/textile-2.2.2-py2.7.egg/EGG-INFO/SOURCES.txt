@@ -1,0 +1,17 @@
+setup.cfg
+setup.py
+textile/__init__.py
+textile/core.py
+textile/textilefactory.py
+textile/version.py
+textile.egg-info/PKG-INFO
+textile.egg-info/SOURCES.txt
+textile.egg-info/dependency_links.txt
+textile.egg-info/not-zip-safe
+textile.egg-info/requires.txt
+textile.egg-info/top_level.txt
+textile/tests/__init__.py
+textile/tools/__init__.py
+textile/tools/doctest_utils.py
+textile/tools/imagesize.py
+textile/tools/sanitizer.py

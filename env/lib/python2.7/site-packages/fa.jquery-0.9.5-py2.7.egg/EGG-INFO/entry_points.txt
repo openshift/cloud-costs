@@ -1,0 +1,9 @@
+
+      [paste.app_factory]
+      main = fa.jquery.wsgi:StaticApp
+      test = fa.jquery.app:make_app
+      [paste.filter_factory]
+      demo = fa.jquery.app:make_demo
+      [fanstatic.libraries]
+      fa = fa.jquery.fanstatic_resources:fa_library
+      

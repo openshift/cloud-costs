@@ -1,0 +1,93 @@
+Metadata-Version: 1.1
+Name: pyramid-formalchemy
+Version: 0.4.4
+Summary: FormAlchemy plugins and helpers for Pyramid
+Home-page: http://docs.formalchemy.org/pyramid_formalchemy/
+Author: Gael Pasgrimaud
+Author-email: gael@gawel.org
+License: UNKNOWN
+Description: This module provide a set of utilities for using FormAlchemy_ with Pyramid
+        
+        .. _formalchemy: http://docs.formalchemy.org/
+        
+        Have a look at the `Online demo
+        <http://docs.formalchemy.org/demo/admin/>`_
+        or at the `Documentation
+        <http://docs.formalchemy.org/pyramid_formalchemy/>`_
+        
+        Bug and feature request must be reported on the `github tracker
+        <https://github.com/FormAlchemy/pyramid_formalchemy/issues>`_
+        
+        
+        
+        
+        
+        
+        CHANGES
+        =======
+        
+        
+        0.4.4 (2013-04-22)
+        ------------------
+        
+        - address pyramid compatibility issue #19 (vangheem)
+        
+        
+        0.4.3 (2011-12-26)
+        ------------------
+        
+        
+        0.4.2 (2011-11-03)
+        ------------------
+        
+        - Pyramid 1.1 compatibility (amleczko)
+        
+        - Adding IBeforeListingRenderEvent (amleczko)
+        
+        - Fix problem with formalchemy_model_view registration (amleczko) 
+        
+        
+        0.4.1 (2011-07-01)
+        ------------------
+        
+        - Fix documentation urls (gawel)
+        
+        - Adding fallback for missing model_class on request (gawel)
+        
+        - Adding missing templates to egg (ConceitedCode, do3cc)
+        
+        0.4 - aka CRUD Sprint (hosted by Red Turtle) release
+        ----------------------------------------------------
+        
+        - view customisation per model (amleczko)
+        
+        - autocomplete renderer for relations (amleczko)
+        
+        - various events hook (amleczko)
+        
+        - paster template for Akhet (do3cc)
+        
+        - permission check in model listing
+        
+        - customisable actions
+        
+        - i18n
+        
+        
+        0.2
+        ---
+        
+        - Take care of permissions. You can now use an __acl__ attribute in your SA
+          models to restrict access
+        
+        0.1
+        ---
+        
+        -  Initial version
+        
+Keywords: web pyramid pylons formalchemy
+Platform: UNKNOWN
+Classifier: Programming Language :: Python
+Classifier: Framework :: Pylons
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Internet :: WWW/HTTP :: WSGI :: Application
