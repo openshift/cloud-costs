@@ -6,10 +6,12 @@ class Nvd3js (object):
 nv.addGraph(function() {
   var chart = nv.models.%(chart)s()%(options)s;
 
-    d3.select("#chart svg")
+  d3.select("#chart svg")
         .datum(data())
-        .transition().duration(350)
+        .transition()
         .call(chart);
+
+  nv.utils.windowResize(chart.update);
 
   return chart;
 });

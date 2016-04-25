@@ -1,24 +1,17 @@
 from ..nvd3js import Nvd3js
 
-class DiscreteBarChart(Nvd3js):
-    _chart = "discreteBarChart"
+class HistoricalBarChart(Nvd3js):
+    _chart = "historicalBarChart"
 
     def options(self):
         return '''
-            .x(function(d) { return d.label })
-            .y(function(d) { return d.value })
-            .staggerLabels(%(stagger_labels)s)
-            .showValues(%(show_values)s)
             .margin({top: %(top_margin)i, right: %(right_margin)i, bottom: %(bottom_margin)i, left: %(left_margin)i})
             .width(%(width)s)
             .height(%(height)s)
+            .duration(%(duration)i)
             .showXAxis(%(show_xaxis)s)
             .showYAxis(%(show_yaxis)s)
-            .duration(%(duration)i)
-            .yDomain(%(y_domain)s)
         ''' % dict(
-                stagger_labels=self.stagger_labels,
-                show_values=self.show_values,
                 top_margin=self.top_margin,
                 right_margin=self.right_margin,
                 bottom_margin=self.bottom_margin,
@@ -28,12 +21,9 @@ class DiscreteBarChart(Nvd3js):
                 show_xaxis=self.show_xaxis,
                 show_yaxis=self.show_yaxis,
                 duration=self.duration,
-                y_domain=self.y_domain,
             )
 
     def __init__(self, **kwargs):
-        self.stagger_labels = 'false'
-        self.show_values = 'false'
         self.top_margin = 15
         self.right_margin = 10
         self.bottom_margin = 50
@@ -43,9 +33,8 @@ class DiscreteBarChart(Nvd3js):
         self.show_xaxis = 'true'
         self.show_yaxis = 'true'
         self.duration = 250
-        self.y_domain = 'd3.extent(d3.merge(seriesData).map(function(d) { return d.y }).concat(forceY))'
 
-        super(DiscreteBarChart, self).__init__(**kwargs)
+        super(HistoricalBarChart, self).__init__(**kwargs)
 
     def __html__(self):
         ''' used by tal:replace '''

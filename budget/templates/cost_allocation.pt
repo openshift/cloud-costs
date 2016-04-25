@@ -10,12 +10,19 @@
 
     <title>OpenShift Statistics and Reporting</title>
 
+		<!-- our bits -->
     <link href="${request.static_url('budget:static/theme.css')}" rel="stylesheet">
     <link href="${request.static_url('budget:static/cost_allocation.css')}" rel="stylesheet">
 
+		<!-- jquery & jqueryUI -->
 		<script src="${request.static_url('budget:static/jquery-2.1.4.min.js')}"></script>
 		<script src="${request.static_url('budget:static/jquery-ui-1.11.4/jquery-ui.min.js')}"></script>
     <link href="${request.static_url('budget:static/jquery-ui-1.11.4/jquery-ui.min.css')}" rel="stylesheet">
+
+		<!-- nvd3 -->
+    <link href="${request.static_url('budget:static/nv.d3.css')}" rel="stylesheet">
+		<script src="${request.static_url('budget:static/d3.js')}" charset="utf-8"></script>
+		<script src="${request.static_url('budget:static/nv.d3.js')}" charset="utf-8"></script>
   </head>
   <body>
 		<div class='selectors'>
@@ -24,7 +31,7 @@
 						<select tal:repeat='selector selectors' tal:attributes='name selector' class="selector-dropdown">
 								<option tal:repeat='opt selectors[selector]["list"]'
 												tal:attributes='value opt'
-												tal:attributes='selected "selected" if opt==selectors[selector]["selected"] else None'>
+												tal:attributes='selected "selected" if opt == selectors[selector]["selected"] else None'>
 										${opt}
 								</option>
 						</select>
@@ -34,14 +41,33 @@
 		<div class="toggle-div">
 				  <span class="toggle-span">Toggle All</span>
 		</div>
+		<div class="metadata-list-div">
+				<span class="metadata-title font-semi-bold">Tags:</span>
+				<span tal:repeat="element python: sorted(list(set(el for val in metadata.values() for el in val)))"
+								tal:attributes="id element"
+								class="metadata-span showSpan"><p class="metadata">${element}</p></span>
+		</div>
+		<div class="grand-total-div">
+				<span class="grand-total-title font-semi-bold">Total Displayed:</span>
+				<span class="grand-total-amount font-semi-bold"></span>
+		</div>
 		<div>
-				<table tal:repeat="account sorted(data)" class="aws_account_table">
+				<table tal:repeat="account sorted(data)" tal:attributes="class python:'aws_account_table showTable ' + ' '.join(metadata[account])">
 						<thead>
 								<tr class="header expand">
 										<th class="aws_account_name">
 												<span class="sign font-bold"></span>
 												<span class="aws_account_name font-semi-bold">${account}</span>
-												<span class="aws_account_total font-semi-bold" tal:condition="account != 'Total'">$ ${totals[account]['account_total']}</span>
+												<span class="graph-icon-span">
+														<img
+																class="graph-icon"
+																id="graph-${account.replace(' ', '-').translate(None, '][')}"
+																src="${request.static_url('budget:static/graph-icon.svg')}"
+														/>
+												</span>
+												<span class="aws_account_total font-semi-bold" tal:condition="account != 'Total'">
+														$ ${totals[account]['account_total']}
+												</span>
 										</th>
 								</tr>
 						</thead>
@@ -54,14 +80,19 @@
 																		<th class="aws_product_name" colspan="5">
 																				<span class="sign font-bold"></span>
 																				<span class="aws_product_name font-semi-bold">${product}</span>
-																				<span class="aws_product_total font-semi-bold" tal:condition="product != 'Sub-Total'">$ ${totals[account][product]}</span>
+																				<span class="aws_product_total font-semi-bold" tal:condition="product != 'Sub-Total'">
+																						$ ${totals[account][product]}
+																				</span>
 																		</th>
 																</tr>
 																<tr class="aws_lineitem_head">
 																		<th class="aws_lineitem_head font-semi-bold">Usage Type</th>
 																		<th class="aws_lineitem_head font-semi-bold">Description</th>
 																		<th class="aws_lineitem_head font-semi-bold">Usage Quantity</th>
-																		<th class="aws_lineitem_head font-semi-bold" title="Blended rates are averaged rates based on reservations, on-demand, and tiered pricing.">Blended Rate&dagger;</th>
+																		<th class="aws_lineitem_head font-semi-bold"
+																						title="Blended rates are averaged rates based on reservations, on-demand, and tiered pricing." >
+																				Blended Rate&dagger;
+																		</th>
 																		<th class="aws_lineitem_head font-semi-bold">Total Cost</th>
 																</tr>
 														</thead>
@@ -73,22 +104,101 @@
 								</tr>
 						</tbody>
 				</table>
+				<div id="graph-dialog"></div>
 				<script type="text/javascript">
+						// TOGGLE ALL THE THINGS!
 						$('.header').click(function(){
-								$(this).toggleClass('expand').nextUntil('tr.header').slideToggle(100);
-						});
-						$('thead').click(function(){
-								$(this).siblings('tbody').slideToggle(100); 
+								try {
+										if (!(event.target.tagName == 'IMG' &&
+														event.target.classList.indexOf('graph-icon') > -1)) {
+												$(this).toggleClass('expand').nextUntil('tr.header').slideToggle(100);
+												update_grand_total();
+										}
+								} catch (err) {
+										console.log(event.target.classList);
+								}
 						})
+
+						$('thead').click(function(){
+								try {
+										if (!(event.target.tagName == 'IMG' &&
+														event.target.classList.indexOf('graph-icon') > -1)) {
+												$(this).siblings('tbody').slideToggle(100);
+										}
+								} catch (err) {
+										console.log(event.target.classList);
+								}
+						})
+
 						$('.toggle-div').click(function(){
-								$(this).toggleClass('expand');
-								$('.header').click();
+										$(this).toggleClass('expand');
+										$('.header').click();
+										update_grand_total();
 						});
-
-						$('.toggle-div').click();
-
+						$('.metadata-span').click(function(){
+								var this_id = $(this).attr('id');
+								$(this).siblings().not('.metadata-title', '.'.concat(this_id)).toggleClass('showSpan').toggle();
+								$('.aws_account_table').not('.'.concat(this_id)).toggleClass('showTable').toggle();
+								update_grand_total();
+						});
+						// TOOLTIPS!
 						$(function() {
 								$( document ).tooltip({  tooltipClass: "tooltip", });
+						});
+
+						// Calculate Grand Total
+						function update_grand_total() {
+								var sum = 0;
+								$('.aws_account_total').each(function() {
+										var num = $(this).text();
+										num = num.replace("$", "").replace(",","").trim();
+										if ($(this).closest("table").hasClass("showTable")) {
+												sum += parseFloat(num);
+										};
+								});
+								numFormat = new Intl.NumberFormat("en-US", {
+																										style: "currency",
+																										currency: "USD",
+																										minimumFractionDigits: 2});
+								$('.grand-total-amount').text(numFormat.format(sum));
+						};
+
+						// Collapse everything after the page loads.
+						$(document).ready(function(){
+								$('.toggle-div').click();
+						});
+
+						// Graph Dialog
+						var dialog = $("#graph-dialog").dialog({
+										autoOpen: false,
+										height: 'auto',
+										width: 'auto',
+										modal: false,
+										resizable: true,
+										closeOnEscape: true,
+										closeText: null,
+						});
+
+						$(".graph-icon").button().on("click", function() {
+								var this_id = $(this).attr("id");
+								$.ajax({
+										type: 'POST',
+										url: '/cost_allocation/graph',
+										data: {
+												caller: this.id,
+												selected_date: $(".selector-dropdown option:selected").val()
+										},
+										dataType: "html",
+										success: function(data) {
+												$("#graph-dialog")
+														.html("<div id='chart'><svg id='d3-svg'/></div>"+data)
+														.dialog({ title: this_id })
+														.dialog("open");
+										}
+								})
+						});
+						$(document).on("dialogresize", function(event,ui) {
+								nv.utils.windowResize(chart.update);
 						});
 				</script>
 		</div>
