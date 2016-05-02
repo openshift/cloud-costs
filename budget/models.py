@@ -117,6 +117,30 @@ class AwsCostAllocation(Base):
     user_environment = Column(String(255), nullable=True)
     user_node = Column(String(255), nullable=True)
 
+class AwsProduct(Base):
+    __tablename__ = 'aws_product'
+
+    id = Column(Integer, primary_key=True)
+    sku = Column(String(64), nullable=False, unique=True)
+    location = Column(String(64), nullable=False)
+    instance_type = Column(String(64), nullable=False)
+    current_generation = Column(Boolean, nullable=False)
+    tenancy = Column(String(64), nullable=False)
+    usage_type = Column(String(64), nullable=False)
+    operation = Column(String(64), nullable=False)
+    operating_system = Column(String(64), nullable=False)
+    json = Column(Text(), nullable=True)
+
+class AwsPrice(Base):
+    __tablename__ = 'aws_price'
+
+    id = Column(Integer, primary_key=True)
+    sku = Column(String(64), nullable=False)
+    offer_term_code = Column(String(64), nullable=False)
+    price_dimensions = Column(Text(), nullable=True)
+    term_attributes = Column(Text(), nullable=True)
+    json = Column(Text(), nullable=True)
+
 class OpenshiftProfileStats(Base):
     __tablename__ = 'openshift_profile_stats'
 

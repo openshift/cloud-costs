@@ -1,0 +1,40 @@
+.results_table {
+		width: 100% !important;
+}
+
+.results_container {
+		padding: 10px 0 20px 0;
+}
+
+.account_name_header {
+		font-size: 1.5em;
+		padding: 0px 0 5px 0;
+}
+
+tr.even[role=row] {
+		background-color: #ffffe6;
+}
+
+tr.odd[role=row] {
+		background-color: #eeeeff;
+}
+
+td {
+	  font-weight: normal;
+}
+
+div.dataTables_processing {
+		color: black !important;
+}
+
+.dataTables_empty {
+		color: white;
+}
+
+tr.shown td.details-control {
+		background: url('../static/DataTables-1.10.11/examples/resources/details_close.png') no-repeat center center;
+}
+
+td.details-control {
+		background: url('../static/DataTables-1.10.11/examples/resources/details_open.png') no-repeat center center;
+}

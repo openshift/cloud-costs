@@ -22,6 +22,8 @@ from pyramid.scripts.common import parse_vars
 
 from budget.models import DBSession, OpenshiftProfileStats, Base
 
+from ..util.fileloader import load_json, save_json
+
 brokers = [
         'use-srv1.prod.rhcloud.com',
         'use-srv2.prod.rhcloud.com',
@@ -45,11 +47,11 @@ def collect_stats():
             pkey=key
             )
     stdin,stdout,stderr = client.exec_command('/usr/sbin/oo-stats -f json')
-    save_json(stats_filename, stdout.read())
+    save_json(cache_dir+'/'+stats_filename, stdout.read())
 
 
 def insert_stats():
-    oostats = load_json(stats_filename)
+    oostats = load_json(cache_dir+'/'+stats_filename)
     stats = []
     for profile in oostats['profile_summaries']:
         stats.append(OpenshiftProfileStats(
@@ -64,20 +66,6 @@ def insert_stats():
         ))
     DBSession.add_all(stats)
     transaction.commit()
-
-def load_json(filename):
-    try:
-        fh = json.loads(json.load(open(filename, 'r+')))
-    except IOError:
-        fh = json.loads('{}')
-    return fh
-
-
-def save_json(filename, data):
-    try:
-        json.dump(data, open(filename, 'w+'))
-    except IOError:
-        raise
 
 def usage(argv):
     cmd = os.path.basename(argv[0])
@@ -100,9 +88,12 @@ def main(argv=sys.argv):
     engine = engine_from_config(settings, 'sqlalchemy.')
     DBSession.configure(bind=engine)
 
+    global cache_dir
+    cache_dir = settings['cache.dir'] + "/oostats"
+
     try:
-        delta = datetime.now() - datetime.fromtimestamp(os.path.getmtime(stats_filename))
-        if delta.days > 1 or os.path.getsize(stats_filename) == 0:
+        delta = datetime.now() - datetime.fromtimestamp(os.path.getmtime(cache_dir+'/'+stats_filename))
+        if delta.days > 1 or os.path.getsize(cache_dir+'/'+stats_filename) == 0:
             collect_stats()
     except OSError as e:
         collect_stats()

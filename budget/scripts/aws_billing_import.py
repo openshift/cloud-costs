@@ -2,7 +2,6 @@
 
 import boto
 import csv
-import json
 import logging
 import os
 import re
@@ -29,6 +28,8 @@ from ..models import (
     AwsCostAllocation,
     Base,
     )
+
+from ..util.fileloader import load_json, save_json
 
 s3_bucket_name = 'primary_billing_bucket'
 checksum_filename = 'checksums.json'
@@ -69,7 +70,7 @@ def prune_logs(bucket):
 
 
 def retrieve_files(bucket):
-    chksum_file = load_checksums()
+    chksum_file = load_json(checksum_filename)
 
     keys = bucket.list()
     for key in bucket.list():
@@ -87,21 +88,8 @@ def retrieve_files(bucket):
                 key.get_contents_to_filename(cache_dir+'/'+key.name)
             except e:
                 log.error(key.name+": "+e.message)
-    save_checksums(chksum_file)
+    save_json(chksum_file)
 
-
-def load_checksums():
-    try:
-        chksum = json.load(open(checksum_filename, 'r+'))
-    except IOError:
-        chksum = json.loads('{}')
-    return chksum
-
-def save_checksums(chksums):
-    try:
-        json.dump(chksums, open(checksum_filename, 'w+'))
-    except IOError:
-        raise
 
 def load_detailed_line_items(begin=datetime(2000,01,01)):
     lastdate, = DBSession.query(

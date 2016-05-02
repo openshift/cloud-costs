@@ -11,7 +11,14 @@
     <title>OpenShift Statistics and Reporting</title>
 
     <link href="${request.static_url('budget:static/theme.css')}" rel="stylesheet">
+    <link href="${request.static_url('budget:static/reservation.css')}" rel="stylesheet">
+    <link href="${request.static_url('budget:static/jquery-ui-1.11.4/jquery-ui.css')}" rel="stylesheet">
+    <link href="${request.static_url('budget:static/DataTables-1.10.11/media/css/jquery.dataTables.css')}" rel="stylesheet">
+    <link href="${request.static_url('budget:static/DataTables-1.10.11/media/css/dataTables.jqueryui.css')}" rel="stylesheet">
+
     <script src="${request.static_url('budget:static/jquery-2.1.4.min.js')}"></script>
+    <script src="${request.static_url('budget:static/DataTables-1.10.11/media/js/jquery.dataTables.js')}"></script>
+		<script src="${request.static_url('budget:static/DataTables-1.10.11/media/js/dataTables.jqueryui.js')}"></script>
   </head>
 
   <body>
@@ -24,69 +31,144 @@
 				</ul>
 		</div>
 		<div id="csv" class="link">
-				<a href="/reservation_csv">Click for CSV</a>
+				<a href="/reservation/csv">Click for CSV</a>
 		</div>
 		<div class="results_container" tal:repeat="account results" tal:attributes="id account">
-				<div class="account_header">
-						<span id="account" tal:content="account">Account</span>
-				</div>
-				<div tal:attributes="id account" class="results_table_container">
-				</div>
-				<script type="text/javascript">
-$(document).ready(function() {
-				$('div#${account}.results_table_container').html('<img src="${request.static_url('budget:static/ajax-loader.gif')}" />');
-				jQuery.ajax({
-								url: "/reservation_data",
-								data: "id=${account}",
-								type: "POST",
-								success: function(data) { $('div#${account}.results_table_container').html(data) }
-				})
-})
-				</script>
+				<table class="results_table" id="${account}">
+						<thead class="account_header">
+								<tr>
+										<th id="${account}" class="account_name_header" tal:content="account"> Account Name</th>
+								</tr>
+						</thead>
+						<tbody>
+								<tr class="results_row">
+										<td class="results_col">
+												<!-- sub-table -->
+												<table class="datatable" id="${account}">
+														<thead>
+																<tr>
+																		<th></th>
+																		<th>AZ</th>
+																		<th>Type</th>
+																		<th>Running</th>
+																		<th>Reserved</th>
+																		<th>Delta</th>
+																		<th>Up-Front</th>
+																		<th>Savings/Loss</th>
+																		<!--
+																		<th>Hourly</th>
+																		<th>Subtotal</th>
+
+																		<th>On-Demand ?</th>
+
+																		<th>Purchase</th>
+																		-->
+																</tr>
+														</thead>
+														<tfoot>
+																<tr>
+																		<th></th>
+																		<th>AZ</th>
+																		<th>Type</th>
+																		<th>Running</th>
+																		<th>Reserved</th>
+																		<th>Delta</th>
+																		<th>Up-Front</th>
+																		<th>Savings/Loss</th>
+																</tr>
+														</tfoot>
+												</table>
+												<!-- end of sub-table -->
+										</td>
+								</tr>
+						</tbody>
+				</table>
 		</div>
 		<script type="text/javascript">
-$(function() {
-		$("div.results_container").on('click', '.button', function() {
-		// validate and process form
-				var idx = this.id.split("_").slice(-1);
-				var uniqueish = Array(5+1).join((Math.random().toString(36)+'00000000000000000').slice(2, 18)).slice(0, 5);
+		// <![CDATA[
+				$(document).ready(function() {
+						$('table.datatable').each(function(idx) {
+								var table = $(this).DataTable({
+										"processing" : true,
+										"serverSide" : false,
+										"paging" : true,
+										"pageLength" : 25,
+										"autoWidth" : false,
+										"ajax" : {
+												"url" : "data",
+												"type" : "POST",
+												"data" : {
+														"id" : $(this).attr("id")
+												},
+										},
+										"columns" : [
+												{
+														'className' : 'details-control',
+														'orderable' : false,
+														'data' : null,
+														'defaultContent' : ''
+												},
+												{ 'data' : 'zone' },
+												{ 'data' : 'type' },
+												{ 'data' : 'running' },
+												{ 'data' : 'reserved' },
+												{ 'data' : 'delta', 'className': 'delta-col' },
+												{ 'data' : 'upfront', 'className' : 'upfront-col' },
+												{ 'data' : 'savings', 'className' : 'savings-col' },
+										],
+								})
+								// Add event listener for opening and closing details
+								$('table.datatable#'+$(this).attr("id")+' tbody').on('click', 'td.details-control', function () {
+										var tr = $(this).closest('tr');
+										var row = table.row( tr );
 
+										if ( row.child.isShown() ) {
+												// This row is already open - close it
+												row.child.hide();
+												tr.removeClass('shown');
+										} else {
+												// Open this row
+												row.child( format(row.data()) ).show();
+												tr.addClass('shown');
+										}
+								} );
+						})
 
-				// limit our traversal of the DOM so we don't
-				// query the wrong form and get incorrect data.
-				var dad = $(this).parent();
-				var granddad = dad.parent();
-
-				var account = dad.children("input#account").val();
-				var az = dad.children("input#availability_zone_"+idx).val();
-				var type = dad.children("input#instance_type_"+idx).val();
-				var count = Math.abs(dad.children("input#count_"+idx).val());
-				var dataString = 'account=' + account + '&az=' + az + '&type=' + type + '&num=' + count;
-				//alert(dataString); return false;
-				$.ajax({
-								type: 'POST',
-								url: '/reservation_purchase',
-								data: dataString,
-								success: function() {
-										var msg = 'message_'+uniqueish+'_'+idx
-										granddad.html('<div class="message" id="'+msg+'"></div>');
-										$('#'+msg).html("<span>Purchased!</span>")
-												.append('<img class="icon" id="checkmark" src="${request.static_url('budget:static/checkmark.png')}">')
-												.hide()
-												.fadeIn(750, function() { $('#message_'+idx) });
-								},
-								error: function() {
-										var msg = 'message_'+uniqueish+'_'+idx
-										granddad.html('<div class="message" id="'+msg+'"></div>');
-										$('#'+msg).html("<span>Error!</span>")
-												.append('<img class="icon" id="warning" src="${request.static_url('budget:static/warning.png')}">')
-												.hide()
-												.fadeIn(750, function() { $('#message_'+idx) });
+						/* Formatting function for row details */
+						function format ( d ) {
+								console.log(d);
+								// `d` is the original data object for the row
+								var tbl = '<table class="details-table">'+
+														'<thead>'+
+														'<tr class="details-row">';
+								if ( d.expiration.length > 0 ) {
+										tbl += '<td class="details-row">RI Count</td>'+
+														'<td class="details-row">RI Days Left</td>'+
+														'<td class="details-row">RI End Date</td>'+
+														'</tr>'+
+														'</thead>'+
+														'<tbody>';
+										for (el in d.expiration) {
+												tbl += '<tr class="details-row">'+
+																'<td class="details-row">'+d.expiration[el].count+'</td>'+
+																'<td class="details-row">'+d.expiration[el].days_left+'</td>'+
+																'<td class="details-row">'+d.expiration[el].end_date+'</td>'+
+																'</tr>';
+										}
+								} else {
+										tbl += '<td class="details-row">No results to display</td>'+
+												'</tr>'+
+												'</thead>'+
+												'<tbody>';
 								}
-				});
-				return false
-		});
-});
+								tbl += '</tbody>'+
+												'</table>';
+								console.log(tbl);
+								return tbl;
+						}
+
+				})
+		// ]]>
 		</script>
   </body>
 </html>

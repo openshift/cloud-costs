@@ -20,16 +20,23 @@
 import boto.ec2
 import csv
 import dateutil.parser
+import json
+import locale
 import logging
+import re
 import os
 import sys
 import yaml
 
 from collections import defaultdict
 from datetime import datetime, timedelta
+from decimal import Decimal, getcontext
 
 from pyramid.response import Response
 from pyramid.view import view_config
+
+from ..util.fileloader import load_json, load_yaml
+from ..models import *
 
 ONE_YEAR = 31536000 # 1 year, in seconds
 THREE_YEAR = ONE_YEAR * 3
@@ -47,13 +54,23 @@ log = logging.getLogger(__name__)
 # adjust boto's logging level.
 #logging.getLogger('boto').setLevel(logging.ERROR)
 
-@view_config(route_name='reservation', renderer='budget:templates/reservation.pt')
+# set Decimal precision
+getcontext().prec = 3
+
+# set locale
+locale.setlocale(locale.LC_ALL, "en_US")
+
+@view_config(route_name='reservation', match_param='loc=list', renderer='budget:templates/reservation.pt')
 def reservation(request):
+    log.debug(request.params)
+
     creds_file = request.registry.settings['creds.dir'] + "/creds.yaml"
     awscreds = load_yaml(creds_file)
+    # send the account-names to the UI for querying
     return { 'results' : sorted(awscreds.keys()) }
 
-@view_config(route_name='reservation_csv', renderer='budget:templates/reservation_csv.pt')
+#FIXME
+@view_config(route_name='reservation', match_param='loc=csv', renderer='budget:templates/reservation_csv.pt')
 def reservation_csv(request):
     creds_file = request.registry.settings['creds.dir'] + "/creds.yaml"
     awscreds = load_yaml(creds_file)
@@ -77,32 +94,69 @@ def reservation_csv(request):
     log.debug(data)
     return { 'results' : data }
 
-@view_config(route_name='reservation_data', renderer='budget:templates/reservation_data.pt')
+@view_config(route_name='reservation',  match_param='loc=data', renderer='json')
 def reservation_data(request):
-		creds_file = request.registry.settings['creds.dir'] + "/creds.yaml"
-		awscreds = load_yaml(creds_file)
-		data = request.POST
-		account = data['id']
+    log.debug(request.params)
 
-                header = [ 'Zone', 'Type', 'Running', 'Reserved',
-                        'Delta', 'Hourly', 'Up Front', 'Subtotal', 'Purchase' ]
+    data = []
 
-                if 'threshold' in data:
-                    expiration_threshold = data['threshold']
-                else:
-                    expiration_threshold = DEFAULT_EXPIRATION_THRESHOLD
+    creds_file = request.registry.settings['creds.dir'] + "/creds.yaml"
 
-                log.debug('fetching reservations for %s' % account)
-                results = get_current_reservations(
-                                awscreds[account]['access_key'],
-                                awscreds[account]['secret_key'],
-                                expiration_threshold)
+    global cache_dir
+    cache_dir = request.registry.settings['cache.dir']
 
-                return { 'account' : account,
-                         'header'  : header,
-                         'results' : results }
+    awscreds = load_yaml(creds_file)
 
-@view_config(route_name='reservation_purchase', renderer='budget:templates/reservation_purchase.pt')
+    account = request.POST['id']
+    access_key = awscreds[account]['access_key']
+    secret_key = awscreds[account]['secret_key']
+
+    log.debug('fetching reservations for %s' % account)
+
+    regions = boto.ec2.regions()
+
+    for region in regions:
+        # skip restricted access regions
+        if region.name in [ 'us-gov-west-1', 'cn-north-1' ]:
+            continue
+
+        log.debug('checking %s' % region.name)
+        ec2 = boto.ec2.connect_to_region(region.name,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key)
+
+        reservations = get_active_reservations(ec2)
+        instances = get_running_instances(ec2)
+        stats = calculate_reservation_stats(reservations, instances)
+        costs = calculate_costs(stats)
+        expirations = get_expirations(reservations)
+
+        #TODO: add detail with number of days remaining on each RI.
+
+        data.append(layout_data(reservations,
+                                instances,
+                                stats,
+                                costs,
+                                expirations))
+
+    # flatten data
+    data = [x for items in data for x in items]
+
+    # data formatted for jQuery DataTable
+    return {
+                'draw' : 1,
+                'recordsTotal' : len(data),
+                'recordsFiltered' : len(data),
+                'data' : data
+            }
+
+#    header = [ 'Zone', 'Type', 'Running', 'Reserved',
+#            'Delta', 'Hourly', 'Up Front', 'Subtotal', 'Purchase' ]
+#
+
+
+#FIXME
+@view_config(route_name='reservation',  match_param='loc=purchase', renderer='budget:templates/reservation_purchase.pt')
 def reservation_purchase(request):
     log.debug(request.POST)
 
@@ -133,59 +187,34 @@ def reservation_purchase(request):
         request.response.status = 500
         return { 'results' : 'FAILURE', 'errors' : 'FAILURE' }
 
+def get_active_reservations(ec2conn):
+    ''' fetch a list of all currently active reservations '''
+    results = []
 
-def load_yaml(filename):
     try:
-        yamlfile = yaml.load(open(filename, 'r+'))
-    except IOError:
-        raise
-    return yamlfile
+        results = ec2conn.get_all_reserved_instances(filters={'state':'active'})
+    except boto.exception.EC2ResponseError as e:
+        log.debug("Error communicating with AWS: %s\n\n" % e.message)
 
-def get_current_reservations(access_key, secret_access_key,
-        expiration_threshold=DEFAULT_EXPIRATION_THRESHOLD):
-
-    regions = boto.ec2.regions()
-    results = {}
-
-    for region in regions:
-        # skip restricted access regions
-        if region.name in [ 'us-gov-west-1', 'cn-north-1' ]:
-            continue
-
-        ec2conn = boto.ec2.connect_to_region(region.name,
-                aws_access_key_id=access_key,
-                aws_secret_access_key=secret_access_key)
-
-        diff, totals = get_reservation_stats(ec2conn, region,
-                expiration_threshold)
-        if not diff:
-            continue
-
-        offerings = {}
-        for params in diff.keys():
-            if diff[params] < 0:
-                offer = get_reserved_offerings(
-                    ec2conn,
-                    instance_type=params[0],
-                    target_az=params[1] )
-                offerings[params] = offer
-
-        results[region] = get_display_results(diff, offerings, totals, region)
     return results
 
-def get_reservation_stats(ec2conn, region,
-        expiration_threshold=DEFAULT_EXPIRATION_THRESHOLD):
-    running_instances  = {}
-    reserved_instances = {}
-    totals             = {}
+def get_running_instances(ec2conn):
+    ''' fetch a list of all currently running instances '''
+    results = []
 
     try:
-        instances = ec2conn.get_only_instances()
-        reservations = ec2conn.get_all_reserved_instances()
+        results = ec2conn.get_only_instances(filters={'instance-state-name':'running'})
     except boto.exception.EC2ResponseError as e:
-        sys.stderr.write("Error communicating with %s: %s\n\n" % (
-                region.name, e.message))
-        return (None, None)
+        log.debug("Error communicating with AWS: %s\n\n" % e.message)
+    except SSLError  as e:
+        log.debug("Error communicating with AWS: %s\n\n" % e.message)
+
+    return results
+
+def calculate_reservation_stats(reservations, instances):
+    totals = {}
+    running_instances = {}
+    reserved_instances = {}
 
     for inst in instances:
         az   = inst.placement
@@ -194,10 +223,9 @@ def get_reservation_stats(ec2conn, region,
         if (size,az) not in totals.keys():
             totals[(size,az)] = defaultdict(lambda: 0)
 
-        if inst.state == 'running':
-            # do a count of each type/az combination
-            running_instances[(size,az)] = running_instances.get((size,az),0)+1
-            totals[(size,az)]['running'] = totals[(size,az)].get('running',0)+1
+        # do a count of each type/az combination
+        running_instances[(size,az)] = running_instances.get((size,az),0)+1
+        totals[(size,az)]['running'] = totals[(size,az)].get('running',0)+1
 
     for ri in reservations:
         az   = ri.availability_zone
@@ -206,21 +234,12 @@ def get_reservation_stats(ec2conn, region,
         if (size,az) not in totals.keys():
             totals[(size,az)] = defaultdict(lambda: 0)
 
-        if ri.state == 'active':
-            days_left = calc_days_left(ri)
-
-            # do a count of each type/az combination
-            if days_left < expiration_threshold:
-                # don't count RIs beneath the expiration threshold
-                reserved_instances[(size,az)] = reserved_instances.get((size,az),0)
-                totals[(size,az)]['reserved'] = totals[(size,az)].get('reserved',0)
-            else:
-                reserved_instances[(size,az)] = reserved_instances.get((size,az),0)+ri.instance_count
-                totals[(size,az)]['reserved'] = totals[(size,az)].get('reserved',0)+ri.instance_count
+        reserved_instances[(size,az)] = reserved_instances.get((size,az),0)+ri.instance_count
+        totals[(size,az)]['reserved'] = totals[(size,az)].get('reserved',0)+ri.instance_count
 
 
     # for each type/az combination, the diff will be
-    # - postiive if we have unused reservations
+    # - postive if we have unused reservations
     # - negative if there are on-demand instances
     diff = dict([(x,reserved_instances[x]-running_instances.get(x,0)) for x in reserved_instances])
 
@@ -230,82 +249,242 @@ def get_reservation_stats(ec2conn, region,
         if not placement in reserved_instances:
             diff[placement] = -running_instances[placement]
 
-    return diff, totals
+    return { "delta" : diff, "totals" : totals }
 
-def calc_days_left(reserved_instance):
+def calculate_costs(stats):
+    cost = {}
+
+    for (size,az) in stats['totals']:
+        if (size,az) not in cost:
+            cost[(size,az)] = {}
+
+        delta = stats['delta'][(size,az)]
+
+        if delta < 0:
+            ri = get_price(instance_type=size,
+                        region=az[:-1],
+                        pricing='Reserved',
+                        lease_contract_length='1yr',
+                        purchase_option='Partial Upfront')
+            cost[(size,az)]['up-front'] = ri['Quantity'] * -delta
+        else:
+            cost[(size,az)]['up-front'] = 0
+
+            # calc savings of reserved over on-demand.
+        if stats['delta'][(size,az)] != 0:
+            savings = calculate_monthly_savings(size, az[:-1]) * -delta
+            cost[(size,az)]['savings'] = savings
+        else:
+            cost[(size,az)]['savings'] = 0
+
+    return cost
+
+def calculate_monthly_savings(instance_type, region):
+    od_price = get_price(instance_type=instance_type, region=region)
+    ri_price = get_price(instance_type=instance_type,
+                        region=region,
+                        pricing='Reserved',
+                        lease_contract_length='1yr',
+                        purchase_option='Partial Upfront')
+
+    monthly_on_demand = od_price['Hrs'] * 24 * 30
+    monthly_ri_amortized = (ri_price['Hrs'] * 24 * 30) + \
+                            (ri_price['Quantity'] / 12)
+    return (monthly_on_demand - monthly_ri_amortized)
+
+def get_price(instance_type='t1.micro', region='us-east-1', tenancy='Shared',
+        pricing='OnDemand', **kwargs):
+    ''' Digs through a massive nest of json data to extract the on demand
+    pricing for AWS instances.
+
+    See also:
+    https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/price-changes.html
+
+    Params:
+
+    instance_type: any valid AWS instance size. (e.g. 'm4.xlarge')
+    region: an AWS region endpoint name. (e.g. 'us-east-1')
+    tenancy: 'Shared' or 'Dedicated'
+    pricing: 'OnDemand' or 'Reserved'
+    lease_contract_length: '1yr' or '3yr'
+    purchase_option: 'No Upfront' or 'Partial Upfront' or 'Full Upfront'
+
+    Returns:
+
+    dict: key - 'Hrs' or 'Quantity'
+          value - Decimal
+    '''
+    log.debug('%s, %s, %s' % (instance_type, region, pricing))
+
+    region_name = region_lookup(region)
+
+    products = DBSession.query(
+                    AwsPrice.price_dimensions,
+                    AwsPrice.term_attributes
+              ).filter(
+                    AwsProduct.instance_type == instance_type,
+                    AwsProduct.location == region_name,
+                    AwsProduct.tenancy == tenancy,
+                    AwsProduct.operating_system == 'Linux',
+                    AwsPrice.sku == AwsProduct.sku
+              ).all()
+
+    log.debug("%s results returned" % len(products))
+    costs = {}
+    for (d, t) in products:
+        price_dimensions = json.loads(d)
+        term_attributes = json.loads(t)
+
+        if pricing == 'OnDemand':
+            rgx = re.compile(r'On Demand Linux %s' % instance_type)
+            costs = _find_cost(rgx, price_dimensions)
+        elif pricing == 'Reserved':
+            # On-Demand has no term_attributes
+            if term_attributes == {}:
+                continue
+
+            if term_attributes['LeaseContractLength'] == kwargs['lease_contract_length'] and \
+                    term_attributes['PurchaseOption'] == kwargs['purchase_option']:
+                rgx = re.compile(r'Linux/UNIX.*%s' % instance_type)
+                costs = _find_cost(rgx, price_dimensions)
+
+        if costs != {}:
+            return costs
+    return costs
+
+def _find_cost(regex, price_dimensions):
+    costs = {}
+    matched = False
+    for dim in price_dimensions:
+        rate = price_dimensions[dim]['pricePerUnit']['USD']
+        units = price_dimensions[dim]['unit']
+        costs[units] = Decimal(rate)
+
+        desc = price_dimensions[dim]['description']
+        if regex.search(desc):
+            matched = True
+    if matched:
+        log.debug(costs)
+        return costs
+    return {}
+
+    # this data structure is deeply, deeply nested. wow.
+    #for product in ec2_pricing['products']:
+    #    prod = ec2_pricing['products'][product]
+    #    prod_attr = prod['attributes']
+
+    #    if 'instanceType' in prod_attr:
+    #        if prod_attr['instanceType'] == instance_type and \
+    #                prod_attr['tenancy'] == tenancy:
+    #            sku = prod['sku']
+    #            loc = prod_attr['location']
+
+    #            if loc == region_name:
+    #                # Reserved or OnDemand
+    #                for term in ec2_pricing['terms'][pricing]:
+    #                    terms = ec2_pricing['terms'][pricing][term]
+    #                    for term_type in terms:
+    #                        price_dimensions = terms[term_type]['priceDimensions']
+    #                        if pricing == 'OnDemand':
+    #                            if terms[term_type]['sku'] == sku:
+
+    #                                costs = {}
+    #                                matched = False
+    #                                for dim in price_dimensions:
+    #                                    rate = price_dimensions[dim]['pricePerUnit']['USD']
+    #                                    units = price_dimensions[dim]['unit']
+    #                                    costs[units] = Decimal(rate)
+
+    #                                    rgx = re.compile(r'On Demand Linux %s' % instance_type)
+    #                                    desc = price_dimensions[dim]['description']
+    #                                    if rgx.search(desc):
+    #                                        matched = True
+    #                                if matched:
+    #                                    log.debug(costs)
+    #                                    return costs
+    #                        elif pricing == 'Reserved':
+    #                            term_attributes = terms[term_type]['termAttributes']
+
+    #                            if terms[term_type]['sku'] == sku and \
+    #                                    term_attributes['LeaseContractLength'] == kwargs['lease_contract_length'] and \
+    #                                    term_attributes['PurchaseOption'] == kwargs['purchase_option']:
+
+    #                                costs = {}
+    #                                matched = False
+    #                                for dim in price_dimensions:
+    #                                    rate = price_dimensions[dim]['pricePerUnit']['USD']
+    #                                    units = price_dimensions[dim]['unit']
+    #                                    costs[units] = Decimal(rate)
+
+    #                                    rgx = re.compile(r'Linux/UNIX.*%s' % instance_type)
+    #                                    desc = price_dimensions[dim]['description']
+    #                                    if rgx.search(desc):
+    #                                        matched = True
+    #                                if matched:
+    #                                    log.debug(costs)
+    #                                    return costs
+    #return {}
+
+def region_lookup(region='us-east-1'):
+    ''' AWS doesn't provide a mapping between the "location" name they use in
+    the pricing files and the "region" name used everywhere else in the API.
+
+    So, I've crafted a JSON mapping file based on this table:
+    https://docs.aws.amazon.com/general/latest/gr/rande.html#ec2_region
+
+    Nothing can ever be easy...  >_<
+    '''
+    ec2_region_map = load_json(cache_dir+"/aws_pricing/ec2_region_map.json")
+
+    for x in ec2_region_map:
+        if x['region'] == region:
+            return x['region_name']
+    return None
+
+def calculate_days_left(reserved_instance):
     start_date = dateutil.parser.parse(reserved_instance.start)
     end_date   = start_date + timedelta(0,reserved_instance.duration)
     today      = datetime.now(dateutil.tz.tzlocal())
     return (end_date - today).days
 
-def get_reserved_offerings(ec2conn, target_az='us-east-1a',
-        instance_type='m3.large', duration=ONE_YEAR):
+def get_expirations(reservations):
+    ''' given a list of ReservedInstances, return their expiration dates and
+    number of instances expiring '''
 
-    offerings = ec2conn.get_all_reserved_instances_offerings(
-            instance_type = instance_type,
-            availability_zone = target_az,
-            max_duration = duration,
-            product_description = 'Linux/UNIX (Amazon VPC)' )
+    data = defaultdict(lambda: [])
+    for reservation in reservations:
+        az = reservation.availability_zone
+        size = reservation.instance_type
 
-    cheapest = None
-    for offering in offerings:
-        # skip marketplace offerings, we only want Amazon-sold RIs
-        if offering.marketplace:
-            continue
+        data_dict = {
+                'end_date' : dateutil.parser.parse(reservation.end).strftime("%Y-%m-%d %H:%M:%S"),
+                'count' : reservation.instance_count,
+                'days_left' : calculate_days_left(reservation)
+            }
 
-        #XXX: I'm not sure why there are reservation offerings with no fixed price.
-        #XXX: This needs investigation.
-        if offering.fixed_price == u'0.0':
-            continue
-
-        ongoing = get_hourly_charges(offering)
-
-        if cheapest:
-            c_annual = float(cheapest.fixed_price) + (ongoing * 24 * 365)
-            o_annual = float(offering.fixed_price) + (ongoing * 24 * 365)
-            if o_annual < c_annual:
-                cheapest = offering
+        if (az,size) not in data:
+            data[(size, az)] = [data_dict]
         else:
-            cheapest = offering
+            data[(size,az)].append(data_dict)
+    return data
 
-    return cheapest
+def layout_data(reservations, instances, stats, costs, expirations):
+    ''' format the data in the way expected by the dataTable '''
+    data = []
 
-def get_hourly_charges(offering):
-    charges = 0
+    for (size, az) in stats['totals']:
+        log.debug(expirations[(size,az)])
+        data.append({
+            'zone' : str(az),
+            'type' : str(size),
+            'running' : stats['totals'][(size,az)]['running'],
+            'reserved' : stats['totals'][(size,az)]['reserved'],
+            'delta' : stats['delta'][(size,az)],
+            'upfront' : locale.currency(costs[(size,az)]['up-front'],
+                                        grouping=True),
+            'savings' : locale.currency(costs[(size,az)]['savings'],
+                                        grouping=True),
+            'expiration' : expirations[(size,az)]
+        })
 
-    if len(offering.recurring_charges) == 1:
-        if offering.recurring_charges[0].frequency == 'Hourly':
-            charges = offering.recurring_charges[0].amount
-        else:
-            raise Exception('Unexpected recurring_charges frequency')
-    else:
-        charges = offering.usage_price
-
-    return float(charges)
-
-
-def get_display_results(diff, offerings, totals, region):
-    total  = 0
-    output = []
-    keys   = diff.keys()
-
-    for key in keys:
-        size, az = key
-        running  = totals[key]['running']
-        reserved = totals[key]['reserved']
-        delta    = diff[key]
-
-        if key in offerings.keys() and offerings[key]:
-            hourly   = get_hourly_charges(offerings[key])
-            upfront  = offerings[key].fixed_price
-            subtotal = abs(float(delta) * float(upfront)) #XXX: might be wrong
-            total += subtotal
-        else:
-            hourly   = 0
-            upfront  = 0
-            subtotal = 0
-
-        line = [az, size, running, reserved, delta, hourly, upfront, subtotal]
-
-        output.append(line)
-    return sorted(output)
+    return data
