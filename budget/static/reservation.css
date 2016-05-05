@@ -38,3 +38,42 @@ tr.shown td.details-control {
 td.details-control {
 		background: url('../static/DataTables-1.10.11/examples/resources/details_open.png') no-repeat center center;
 }
+
+tr.odd td.delta-col.negative {
+		background: #99ff99;
+}
+tr.even td.delta-col.negative {
+		background: #ccffcc;
+}
+tr.odd td.delta-col.positive {
+		background: #ff8566;
+}
+tr.even td.delta-col.positive {
+		background: #ffc2b3;
+}
+
+tr.odd td.savings-col.negative {
+		background: #ff8566;
+}
+tr.even td.savings-col.negative {
+		background: #ffc2b3;
+}
+tr.odd td.savings-col.positive {
+		background: #99ff99;
+}
+tr.even td.savings-col.positive {
+		background: #ccffcc;
+}
+
+.instances-table {
+		width: 100%;
+		height: 100%;
+		margin: 0;
+		padding: 0;
+}
+
+#dialog {
+		background: #ffffe6;
+		width: auto;
+		height: auto;
+}

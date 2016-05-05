@@ -98,23 +98,20 @@ def reservation_csv(request):
 def reservation_data(request):
     log.debug(request.params)
 
-    data = []
-
     creds_file = request.registry.settings['creds.dir'] + "/creds.yaml"
-
-    global cache_dir
-    cache_dir = request.registry.settings['cache.dir']
-
     awscreds = load_yaml(creds_file)
-
     account = request.POST['id']
     access_key = awscreds[account]['access_key']
     secret_key = awscreds[account]['secret_key']
 
+    global cache_dir
+    cache_dir = request.registry.settings['cache.dir']
+
     log.debug('fetching reservations for %s' % account)
 
-    regions = boto.ec2.regions()
+    data = []
 
+    regions = boto.ec2.regions()
     for region in regions:
         # skip restricted access regions
         if region.name in [ 'us-gov-west-1', 'cn-north-1' ]:
@@ -125,8 +122,8 @@ def reservation_data(request):
                 aws_access_key_id=access_key,
                 aws_secret_access_key=secret_key)
 
-        reservations = get_active_reservations(ec2)
-        instances = get_running_instances(ec2)
+        reservations = get_reservations(ec2)
+        instances = get_instances(ec2)
         stats = calculate_reservation_stats(reservations, instances)
         costs = calculate_costs(stats)
         expirations = get_expirations(reservations)
@@ -150,10 +147,48 @@ def reservation_data(request):
                 'data' : data
             }
 
-#    header = [ 'Zone', 'Type', 'Running', 'Reserved',
-#            'Delta', 'Hourly', 'Up Front', 'Subtotal', 'Purchase' ]
-#
+@view_config(route_name='reservation',  match_param='loc=instances', renderer='json')
+def reservation_instances(request):
+    log.debug(request.params)
 
+    creds_file = request.registry.settings['creds.dir'] + "/creds.yaml"
+    awscreds = load_yaml(creds_file)
+    account = request.POST['account']
+    access_key = awscreds[account]['access_key']
+    secret_key = awscreds[account]['secret_key']
+
+    az = request.POST['availability-zone']
+    size = request.POST['instance-type']
+    ec2 = boto.ec2.connect_to_region(az[:-1],
+                                    aws_access_key_id=access_key,
+                                    aws_secret_access_key=secret_key)
+    instances = get_instances(ec2, filters={
+                                            'instance-state-name':'running',
+                                            'instance-type':size,
+                                            'availability-zone':az
+                                            })
+
+    data = []
+    for i in instances:
+        if 'Name' in i.tags:
+            name = i.tags['Name']
+        else:
+            name = 'No Name'
+
+        if 'environment' in i.tags:
+            env = i.tags['environment']
+        else:
+            env = 'No Environment'
+
+        data.append({'id':i.id,'name':name,'env':env})
+
+    # data formatted for jQuery DataTable
+    return {
+                'draw' : 1,
+                'recordsTotal' : len(data),
+                'recordsFiltered' : len(data),
+                'data' : data
+            }
 
 #FIXME
 @view_config(route_name='reservation',  match_param='loc=purchase', renderer='budget:templates/reservation_purchase.pt')
@@ -187,23 +222,23 @@ def reservation_purchase(request):
         request.response.status = 500
         return { 'results' : 'FAILURE', 'errors' : 'FAILURE' }
 
-def get_active_reservations(ec2conn):
-    ''' fetch a list of all currently active reservations '''
+def get_reservations(ec2conn, filters={'state':'active'}):
+    ''' fetch a list of reservations, default is active reservations '''
     results = []
 
     try:
-        results = ec2conn.get_all_reserved_instances(filters={'state':'active'})
+        results = ec2conn.get_all_reserved_instances(filters=filters)
     except boto.exception.EC2ResponseError as e:
         log.debug("Error communicating with AWS: %s\n\n" % e.message)
 
     return results
 
-def get_running_instances(ec2conn):
-    ''' fetch a list of all currently running instances '''
+def get_instances(ec2conn, filters={'instance-state-name':'running'}):
+    ''' fetch a list of instances, default is running instances '''
     results = []
 
     try:
-        results = ec2conn.get_only_instances(filters={'instance-state-name':'running'})
+        results = ec2conn.get_only_instances(filters=filters)
     except boto.exception.EC2ResponseError as e:
         log.debug("Error communicating with AWS: %s\n\n" % e.message)
     except SSLError  as e:
@@ -314,7 +349,6 @@ def get_price(instance_type='t1.micro', region='us-east-1', tenancy='Shared',
     dict: key - 'Hrs' or 'Quantity'
           value - Decimal
     '''
-    log.debug('%s, %s, %s' % (instance_type, region, pricing))
 
     region_name = region_lookup(region)
 
@@ -329,7 +363,8 @@ def get_price(instance_type='t1.micro', region='us-east-1', tenancy='Shared',
                     AwsPrice.sku == AwsProduct.sku
               ).all()
 
-    log.debug("%s results returned" % len(products))
+    log.debug('%s, %s, %s - %s results returned' % (instance_type, region,
+                                                    pricing, len(products)))
     costs = {}
     for (d, t) in products:
         price_dimensions = json.loads(d)
@@ -364,66 +399,8 @@ def _find_cost(regex, price_dimensions):
         if regex.search(desc):
             matched = True
     if matched:
-        log.debug(costs)
         return costs
     return {}
-
-    # this data structure is deeply, deeply nested. wow.
-    #for product in ec2_pricing['products']:
-    #    prod = ec2_pricing['products'][product]
-    #    prod_attr = prod['attributes']
-
-    #    if 'instanceType' in prod_attr:
-    #        if prod_attr['instanceType'] == instance_type and \
-    #                prod_attr['tenancy'] == tenancy:
-    #            sku = prod['sku']
-    #            loc = prod_attr['location']
-
-    #            if loc == region_name:
-    #                # Reserved or OnDemand
-    #                for term in ec2_pricing['terms'][pricing]:
-    #                    terms = ec2_pricing['terms'][pricing][term]
-    #                    for term_type in terms:
-    #                        price_dimensions = terms[term_type]['priceDimensions']
-    #                        if pricing == 'OnDemand':
-    #                            if terms[term_type]['sku'] == sku:
-
-    #                                costs = {}
-    #                                matched = False
-    #                                for dim in price_dimensions:
-    #                                    rate = price_dimensions[dim]['pricePerUnit']['USD']
-    #                                    units = price_dimensions[dim]['unit']
-    #                                    costs[units] = Decimal(rate)
-
-    #                                    rgx = re.compile(r'On Demand Linux %s' % instance_type)
-    #                                    desc = price_dimensions[dim]['description']
-    #                                    if rgx.search(desc):
-    #                                        matched = True
-    #                                if matched:
-    #                                    log.debug(costs)
-    #                                    return costs
-    #                        elif pricing == 'Reserved':
-    #                            term_attributes = terms[term_type]['termAttributes']
-
-    #                            if terms[term_type]['sku'] == sku and \
-    #                                    term_attributes['LeaseContractLength'] == kwargs['lease_contract_length'] and \
-    #                                    term_attributes['PurchaseOption'] == kwargs['purchase_option']:
-
-    #                                costs = {}
-    #                                matched = False
-    #                                for dim in price_dimensions:
-    #                                    rate = price_dimensions[dim]['pricePerUnit']['USD']
-    #                                    units = price_dimensions[dim]['unit']
-    #                                    costs[units] = Decimal(rate)
-
-    #                                    rgx = re.compile(r'Linux/UNIX.*%s' % instance_type)
-    #                                    desc = price_dimensions[dim]['description']
-    #                                    if rgx.search(desc):
-    #                                        matched = True
-    #                                if matched:
-    #                                    log.debug(costs)
-    #                                    return costs
-    #return {}
 
 def region_lookup(region='us-east-1'):
     ''' AWS doesn't provide a mapping between the "location" name they use in
@@ -461,11 +438,7 @@ def get_expirations(reservations):
                 'count' : reservation.instance_count,
                 'days_left' : calculate_days_left(reservation)
             }
-
-        if (az,size) not in data:
-            data[(size, az)] = [data_dict]
-        else:
-            data[(size,az)].append(data_dict)
+        data[(size,az)].append(data_dict)
     return data
 
 def layout_data(reservations, instances, stats, costs, expirations):
@@ -473,7 +446,6 @@ def layout_data(reservations, instances, stats, costs, expirations):
     data = []
 
     for (size, az) in stats['totals']:
-        log.debug(expirations[(size,az)])
         data.append({
             'zone' : str(az),
             'type' : str(size),
