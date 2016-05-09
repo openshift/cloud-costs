@@ -10,31 +10,37 @@
 
     <title>OpenShift Statistics and Reporting</title>
 
+		<!-- Our Stuff -->
     <link href="${request.static_url('budget:static/theme.css')}" rel="stylesheet">
     <link href="${request.static_url('budget:static/reservation.css')}" rel="stylesheet">
+
+		<!-- JQuery & JqueryUI -->
     <link href="${request.static_url('budget:static/jquery-ui-1.11.4/jquery-ui.css')}" rel="stylesheet">
     <link href="${request.static_url('budget:static/jquery-ui-1.11.4/jquery-ui.theme.min.css')}" rel="stylesheet">
     <link href="${request.static_url('budget:static/jquery-ui-1.11.4/theme.css')}" rel="stylesheet">
-    <link href="${request.static_url('budget:static/DataTables-1.10.11/media/css/jquery.dataTables.css')}" rel="stylesheet">
-    <link href="${request.static_url('budget:static/DataTables-1.10.11/media/css/dataTables.jqueryui.css')}" rel="stylesheet">
-
     <script src="${request.static_url('budget:static/jquery-2.1.4.min.js')}"></script>
     <script src="${request.static_url('budget:static/jquery-ui-1.11.4/jquery-ui.min.js')}"></script>
+
+		<!-- DataTables -->
+    <link href="${request.static_url('budget:static/DataTables-1.10.11/media/css/jquery.dataTables.css')}" rel="stylesheet">
     <script src="${request.static_url('budget:static/DataTables-1.10.11/media/js/jquery.dataTables.js')}"></script>
+		<script src="${request.static_url('budget:static/DataTables-1.10.11/extensions/Buttons/js/dataTables.buttons.js')}"></script>
+
+		<!-- DataTables JQueryUI Integration -->
+    <link href="${request.static_url('budget:static/DataTables-1.10.11/media/css/dataTables.jqueryui.css')}" rel="stylesheet">
 		<script src="${request.static_url('budget:static/DataTables-1.10.11/media/js/dataTables.jqueryui.js')}"></script>
+		<script src="${request.static_url('budget:static/DataTables-1.10.11/extensions/Buttons/js/buttons.jqueryui.js')}"></script>
+
+		<!-- nvd3 -->
+		<link href="${request.static_url('budget:static/nv.d3.css')}" rel="stylesheet">
+		<script src="${request.static_url('budget:static/d3.js')}" charset="utf-8"></script>
+		<script src="${request.static_url('budget:static/nv.d3.js')}" charset="utf-8"></script>
   </head>
 
   <body>
 
-		<div id="note">
-				<p>For each listing, the delta will be:</p>
-				<ul>
-						<li>positive if there are unused reservations</li>
-						<li>negative if there are on-demand instances in need of reservation</li>
-				</ul>
-		</div>
 		<div id="csv" class="link">
-				<a href="/reservation/csv">Click for CSV</a>
+				<a href="/reservation/csv">CSV</a>
 		</div>
 		<div class="results_container" tal:repeat="account results" tal:attributes="id account">
 				<table class="results_table" id="${account}">
@@ -55,9 +61,10 @@
 																		<th>Type</th>
 																		<th>Running</th>
 																		<th>Reserved</th>
-																		<th>Delta</th>
+																		<th title='Positive: Unused Reservations (bad);
+																				Negative: On-Demand Instances without Reservations (buy more)'>Delta&dagger;</th>
 																		<th>Up-Front</th>
-																		<th>Savings/Loss</th>
+																		<th title='Positive: Savings (good); Negative: Loss (bad)'>Savings/Loss&dagger;</th>
 																		<!--
 																		<th>Purchase</th>
 																		-->
@@ -86,18 +93,17 @@
 		// <![CDATA[
 				$(document).ready(function() {
 						$('table.datatable').each(function(idx) {
+								var this_id = $(this).attr('id');
 								var table = $(this).DataTable({
 										"processing" : true,
 										"serverSide" : false,
 										"paging" : true,
-										"pageLength" : 25,
+										"pageLength" : 10,
 										"autoWidth" : false,
 										"ajax" : {
 												"url" : "data",
 												"type" : "POST",
-												"data" : {
-														"id" : $(this).attr("id")
-												},
+												"data" : { "id" : this_id },
 										},
 										"columns" : [
 												{
@@ -179,6 +185,37 @@
 														}
 												}
 										},
+										'buttons' : [{ text : 'RI Graph',
+																		action : function (e,dt,node,config) {
+																				// Reservation expiration Dialog
+																				var dialog = $("#dialog").dialog({
+																								autoOpen: false,
+																								height: 'auto',
+																								width: 'auto',
+																								modal: false,
+																								resizable: true,
+																								closeOnEscape: true,
+																								closeText: null,
+																				});
+																				var account = this_id;
+																				console.log(account);
+																				dialog.dialog("open").html("<div id='chart'>Loading...</div>");
+																				$.ajax({
+																						type: 'POST',
+																						url: '/reservation/expiration-graph',
+																						data: { 'account' : account },
+																						dataType: "html",
+																						success: function(data) {
+																								$("#dialog")
+																										.html("<div id='chart'><svg id='d3-svg'/></div>"+data)
+																										.dialog({ title: account + ' RI Expiration' })
+																						}
+                })
+
+										}}],
+										'dom' : '<"fg-toolbar ui-toolbar ui-widget-header ui-helper-clearfix ui-corner-tl ui-corner-tr"Blfr>'+
+										't'+
+										'<"fg-toolbar ui-toolbar ui-widget-header ui-helper-clearfix ui-corner-bl ui-corner-br"ip>',
 								}) // end DataTable
 
 								// Add event listener for opening and closing details
@@ -292,6 +329,11 @@
 								return tbl;
 						}
 				})
+
+				/* tooltip */
+				$(function() {
+						$( document ).tooltip();
+				});
 		// ]]>
 		</script>
 		<div id="dialog"></div>

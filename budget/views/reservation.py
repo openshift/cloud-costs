@@ -35,7 +35,9 @@ from decimal import Decimal, getcontext
 from pyramid.response import Response
 from pyramid.view import view_config
 
+from ..util.nvd3js.charts.discretebar import DiscreteBarChart
 from ..util.fileloader import load_json, load_yaml
+from ..util.addset import addset
 from ..models import *
 
 ONE_YEAR = 31536000 # 1 year, in seconds
@@ -98,11 +100,8 @@ def reservation_csv(request):
 def reservation_data(request):
     log.debug(request.params)
 
-    creds_file = request.registry.settings['creds.dir'] + "/creds.yaml"
-    awscreds = load_yaml(creds_file)
     account = request.POST['id']
-    access_key = awscreds[account]['access_key']
-    secret_key = awscreds[account]['secret_key']
+    access_key, secret_key = get_creds(account, request.registry.settings)
 
     global cache_dir
     cache_dir = request.registry.settings['cache.dir']
@@ -151,11 +150,8 @@ def reservation_data(request):
 def reservation_instances(request):
     log.debug(request.params)
 
-    creds_file = request.registry.settings['creds.dir'] + "/creds.yaml"
-    awscreds = load_yaml(creds_file)
     account = request.POST['account']
-    access_key = awscreds[account]['access_key']
-    secret_key = awscreds[account]['secret_key']
+    access_key, secret_key = get_creds(account, request.registry.settings)
 
     az = request.POST['availability-zone']
     size = request.POST['instance-type']
@@ -195,16 +191,15 @@ def reservation_instances(request):
 def reservation_purchase(request):
     log.debug(request.POST)
 
-    creds_file = request.registry.settings['creds.dir'] + "/creds.yaml"
-    awscreds = load_yaml(creds_file)
+    access_key, secret_key = get_creds(account, request.registry.settings)
 
     data = request.POST
     account = data['account']
     region = data['az'][:-1]
 
     ec2conn = boto.ec2.connect_to_region(region,
-                        aws_access_key_id=awscreds[account]['access_key'],
-                        aws_secret_access_key=awscreds[account]['secret_key'])
+                        aws_access_key_id=access_key,
+                        aws_secret_access_key=secret_key)
 
     offerings = get_reserved_offerings(ec2conn,
                                         target_az=data['az'],
@@ -221,6 +216,65 @@ def reservation_purchase(request):
         # TODO: alter the return HTTP code to be 500
         request.response.status = 500
         return { 'results' : 'FAILURE', 'errors' : 'FAILURE' }
+
+@view_config(route_name='reservation', match_param='loc=expiration-graph', renderer='budget:templates/structure.pt')
+def reservation_expiration_graph(request):
+    log.debug(request.params)
+
+    account = None
+    if 'account' in request.params:
+        account = request.params['account']
+    if not account:
+        log.debug('no data')
+        return { 'data' : 'No graph to show' }
+
+    access_key, secret_key = get_creds(account, request.registry.settings)
+
+    expirations = None
+    data = {}
+
+    regions = boto.ec2.regions()
+    for region in regions:
+        # skip restricted access regions
+        if region.name in [ 'us-gov-west-1', 'cn-north-1' ]:
+            continue
+
+        log.debug('checking %s' % region.name)
+        ec2 = boto.ec2.connect_to_region(region.name,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key)
+
+        reservations = get_reservations(ec2)
+        expirations = get_expirations(reservations)
+
+        for zone_size in expirations:
+            for ri in expirations[zone_size]:
+                addset(data, ri['end_date'], ri['count'])
+
+    if not data:
+        log.debug('no data')
+        return { 'data' : 'No graph to show' }
+    log.debug(data)
+
+    graph_data = []
+    for key in data:
+        graph_data.append({ 'label': key,
+                            'value': data[key]})
+
+    graph = DiscreteBarChart(stagger_labels='true')
+    graph.data = [{ 'key' : str(account), 'values' : graph_data}]
+
+    log.debug(graph_data)
+    return { 'data' : graph }
+
+#########################################################
+
+def get_creds(account, settings):
+    creds_file = settings['creds.dir'] + "/creds.yaml"
+    awscreds = load_yaml(creds_file)
+    access_key = awscreds[account]['access_key']
+    secret_key = awscreds[account]['secret_key']
+    return (access_key, secret_key)
 
 def get_reservations(ec2conn, filters={'state':'active'}):
     ''' fetch a list of reservations, default is active reservations '''
@@ -434,7 +488,7 @@ def get_expirations(reservations):
         size = reservation.instance_type
 
         data_dict = {
-                'end_date' : dateutil.parser.parse(reservation.end).strftime("%Y-%m-%d %H:%M:%S"),
+                'end_date' : dateutil.parser.parse(reservation.end).strftime("%Y-%m-%d"),
                 'count' : reservation.instance_count,
                 'days_left' : calculate_days_left(reservation)
             }

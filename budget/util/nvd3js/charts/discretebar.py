@@ -4,7 +4,7 @@ class DiscreteBarChart(Nvd3js):
     _chart = "discreteBarChart"
 
     def options(self):
-        return '''
+        opts = '''
             .x(function(d) { return d.label })
             .y(function(d) { return d.value })
             .staggerLabels(%(stagger_labels)s)
@@ -15,7 +15,6 @@ class DiscreteBarChart(Nvd3js):
             .showXAxis(%(show_xaxis)s)
             .showYAxis(%(show_yaxis)s)
             .duration(%(duration)i)
-            .yDomain(%(y_domain)s)
         ''' % dict(
                 stagger_labels=self.stagger_labels,
                 show_values=self.show_values,
@@ -28,8 +27,10 @@ class DiscreteBarChart(Nvd3js):
                 show_xaxis=self.show_xaxis,
                 show_yaxis=self.show_yaxis,
                 duration=self.duration,
-                y_domain=self.y_domain,
             )
+        if self.y_domain:
+            opts = opts + '.yDomain('+self.y_domain+')'
+        return opts
 
     def __init__(self, **kwargs):
         self.stagger_labels = 'false'
@@ -43,7 +44,7 @@ class DiscreteBarChart(Nvd3js):
         self.show_xaxis = 'true'
         self.show_yaxis = 'true'
         self.duration = 250
-        self.y_domain = 'd3.extent(d3.merge(seriesData).map(function(d) { return d.y }).concat(forceY))'
+        self.y_domain = None
 
         super(DiscreteBarChart, self).__init__(**kwargs)
 

@@ -10,7 +10,6 @@ from sqlalchemy import or_, and_, not_, asc
 
 from ..models import *
 from ..util.addset import addset
-from ..util.nvd3js.charts.historicalbar import HistoricalBarChart
 from ..util.nvd3js.charts.discretebar import DiscreteBarChart
 
 import locale
@@ -187,9 +186,6 @@ def cost_allocation_graph(request):
         graph_data.append({ 'label': result.billing_period_start_date.strftime("%Y-%m-%d"), 'value': "%.3f" % Decimal(result.total_cost)})
 
     log.debug(graph_data)
-
-    #graph = HistoricalBarChart()
-    #graph.data = [{ 'key' : str(caller), 'values' : graph_data , 'color' : '#ffffff' }]
 
     # setting y_domain because the default calculation often misses the max value
     graph = DiscreteBarChart(

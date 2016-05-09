@@ -77,3 +77,10 @@ tr.even td.savings-col.positive {
 		width: auto;
 		height: auto;
 }
+
+.dt-buttons {
+display: inline;
+margin: 0 0 0 15px;
+padding: 0 0 0 0;
+}
+
