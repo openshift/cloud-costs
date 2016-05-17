@@ -145,7 +145,7 @@ class OpenshiftProfileStats(Base):
     __tablename__ = 'openshift_profile_stats'
 
     id = Column(Integer, primary_key=True)
-    collection_date = Column(DateTime, nullable=False)
+    collection_date = Column(DateTime, nullable=False, unique=True)
     profile_name = Column(String(255), nullable=False)
     nodes_count = Column(Integer, nullable=True)
     gears_active_count = Column(Integer, nullable=True)
@@ -154,11 +154,31 @@ class OpenshiftProfileStats(Base):
     gears_unknown_count = Column(Integer, nullable=True)
     gears_total_count = Column(Integer, nullable=True)
 
-#class OpenshiftV3ProfileStats(Base):
-#    __tablename__ = 'openshift_v3_profile_stats'
-#
-#    id = Column(Integer, primary_key=True)
-#    collection_date = Column(DateTime, nullable=False)
+class OpenshiftV3ProfileStats(Base):
+    __tablename__ = 'openshift_v3_profile_stats'
+
+    id = Column(Integer, primary_key=True)
+    collection_date = Column(DateTime, nullable=False, unique=True)
+    clusters = Column(Integer, nullable=False)
+    compute_nodes = Column(Integer, nullable=False)
+    compute_node_pod_capacity = Column(Integer, nullable=False)
+    master_nodes = Column(Integer, nullable=False)
+    master_node_pod_capacity = Column(Integer, nullable=False)
+    unknown_nodes = Column(Integer, nullable=False)
+    unknown_node_pod_capacity = Column(Integer, nullable=False)
+    infra_nodes = Column(Integer, nullable=False)
+    infra_node_pod_capacity = Column(Integer, nullable=False)
+    pods = Column(Integer, nullable=False)
+    containers = Column(Integer, nullable=False)
+    terminated_containers = Column(Integer, nullable=False)
+    waiting_containers = Column(Integer, nullable=False)
+    failed_containers = Column(Integer, nullable=False)
+    running_containers = Column(Integer, nullable=False)
+    pending_containers = Column(Integer, nullable=False)
+    active_containers = Column(Integer, nullable=False)
+    terminating_containers = Column(Integer, nullable=False)
+    users = Column(Integer, nullable=False)
+    projects = Column(Integer, nullable=False)
 
 class AwsAccountMetadata(Base):
     __tablename__ = 'aws_account_metadata'
@@ -168,6 +188,13 @@ class AwsAccountMetadata(Base):
     account_name = Column(String(255), nullable=True)
     tags = Column(Text(), nullable=True)
 
+class ExpensedCost(Base):
+    __tablename__ = 'expensed_cost'
+
+    id = Column(Integer, primary_key=True)
+    vendor = Column(String(255), nullable=False)
+    invoice_date = Column(DateTime, nullable=False)
+    amount = Column(Float, nullable=False)
 
 #class MyModel(Base):
 #    __tablename__ = 'models'

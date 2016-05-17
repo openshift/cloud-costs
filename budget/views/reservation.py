@@ -257,7 +257,7 @@ def reservation_expiration_graph(request):
     log.debug(data)
 
     graph_data = []
-    for key in data:
+    for key in sorted(data.keys()):
         graph_data.append({ 'label': key,
                             'value': data[key]})
 
