@@ -1,0 +1,6 @@
+{
+    "release_date": "2016-01-30", 
+    "version": "2.1.1", 
+    "maintainer": "Ben Finney <ben+python@benfinney.id.au>", 
+    "body": "* Default \u2018initgroups\u2019 option to False. Using \u2018os.initgroups\u2019 requires\n  permission to set process GID, so this now needs to be explicitly requested.\n"
+}
