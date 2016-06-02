@@ -73,7 +73,7 @@ def calc_nodes(yml):
         if node_type not in data:
             data[node_type] = {}
 
-        addset(data[node_type], 'pod_capacity', pod_capacity)
+        data[node_type]['pod_capacity'] = pod_capacity
         addset(data[node_type], 'total_nodes', 1)
 
     return data
@@ -101,43 +101,71 @@ def prepare_nodes(dataset):
 
 def calc_pods(yml):
     ''' calculates total number of pods and individual container states '''
-    data = {'total_pods' : len(yml['items'])}
+    pods = {}
+    containers = {}
+    pod_total = 0
+    container_total = 0
     for item in yml['items']:
-        # pylint: disable=fixme
-        # XXX: do we need to filter out router/registry pods?
-        try:
+        if item['kind'] == 'Pod' and 'conditions' in item['status']:
             for status in item['status']['containerStatuses']:
-                addset(data, 'total_containers', 1)
-
                 for state in status['state'].keys():
-                    addset(data, state, 1)
-        except KeyError:
-            addset(data, item['status']['phase'], 1)
-    return data
+                    container = status['name']
+
+                    if state in containers:
+                        containers[state].append(container)
+                    else:
+                        containers[state] = [container]
+                container_total = container_total + 1
+
+        phase = item['status']['phase']
+        uid = item['metadata']['uid']
+        if phase in pods:
+            pods[phase].append(uid)
+        else:
+            pods[phase] = [uid]
+        pod_total = pod_total + 1
+
+    return {'total_pods' : pod_total,
+            'total_containers' : container_total,
+            'pods' : pods,
+            'containers' : containers}
 
 def prepare_pods(dataset):
     """ add pod data to db object """
-    totals = {}
+    total_pods = 0
+    total_containers = 0
+    state_totals = {'pods':{}, 'containers':{}}
 
     # key: cluster name
-    for data in dataset:
-        # key: data type
-        for datum in dataset[data]:
-            addset(totals, datum, dataset[data][datum])
+    for cluster in dataset:
+        pods = dataset[cluster].pop('total_pods')
+        total_pods = total_pods + pods
+        containers = dataset[cluster].pop('total_containers')
+        total_containers = total_containers + containers
+        # key: pods or containers
+        for key in dataset[cluster]:
+            # key: state
+            for state in dataset[cluster][key]:
+                addset(state_totals[key], state, len(dataset[cluster][key][state]))
 
-    result = {'pods':totals.pop('total_pods'),
-            'containers':totals.pop('total_containers')}
 
-    for total in totals:
-        result["%s_containers" % total.lower()] = totals[total]
+    result = {'total_pods':total_pods,'total_containers':total_containers}
+    for pod_con in state_totals:
+        for state in state_totals[pod_con]:
+            result["%s_%s" % (state.lower(), pod_con)] = state_totals[pod_con][state]
     return result
 
 def calc_projects(yml):
     ''' calculates total number of projects and project states '''
-    data = {'total_projects' : len(yml['items'])}
+    data = {}
+    total = 0
 
     for item in yml['items']:
-        addset(data, item['status']['phase'], 1)
+        if item['kind'] == 'Project':
+            addset(data, item['status']['phase'], 1)
+            total = total + 1
+
+    data['total_projects'] = total
     return data
 
 def prepare_projects(dataset):
@@ -159,7 +187,11 @@ def prepare_projects(dataset):
 
 def calc_users(yml):
     ''' calculates total number of users '''
-    return {'total_users' : len(yml['items'])}
+    users = []
+    for item in yml['items']:
+        if 'fullName' in item:
+            users = item
+    return {'total_users' : len(users)}
 
 def prepare_users(dataset):
     """ add user data to db object """
@@ -246,18 +278,42 @@ def main(args):
         output = eval("calc_"+parsed_name['data_type']+"(yml)")
         data[parsed_name['data_type']][parsed_name['cluster_name']] = output
 
-
+    log.debug(data)
     # pylint: disable=unused-variable
-    row_params = {'collection_date':collection_date}
+    row_params = { 'collection_date' : collection_date,
+                    'clusters' : 0,
+                    'compute_nodes' : 0,
+                    'compute_node_pod_capacity' : 0,
+                    'master_nodes' : 0,
+                    'master_node_pod_capacity' : 0,
+                    'unknown_nodes' : 0,
+                    'unknown_node_pod_capacity' : 0,
+                    'infra_nodes' : 0,
+                    'infra_node_pod_capacity' : 0,
+                    'total_pods' : 0,
+                    'total_containers' : 0,
+                    'terminated_containers' : 0,
+                    'terminating_containers' : 0,
+                    'waiting_containers' : 0,
+                    'running_containers' : 0,
+                    'failed_pods' : 0,
+                    'running_pods' : 0,
+                    'pending_pods' : 0,
+                    'succeeded_pods' : 0,
+                    'users' : 0,
+                    'projects' : 0,
+                    'active_projects' : 0,
+                    'terminating_projects' : 0,
+                }
     for datum in data:
         # call appropriate method
         # pylint: disable=eval-used
         eval("row_params.update(prepare_"+datum+"(data[datum]))")
 
     log.debug(row_params)
-    row = OpenshiftV3ProfileStats(**row_params)
-    DBSession.add(row)
-    transaction.commit()
+    #row = OpenshiftV3ProfileStats(**row_params)
+    #DBSession.add(row)
+    #transaction.commit()
 
 if '__main__' in __name__:
     try:

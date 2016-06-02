@@ -4,11 +4,13 @@ from pyramid.response import Response
 from pyramid.view import view_config
 
 from sqlalchemy.exc import DBAPIError
-from sqlalchemy import not_
+from sqlalchemy import not_, asc, distinct
 
 from ..models import *
+from ..util.addset import addset
 from ..util.nvd3js.charts.piechart import PieChart
 from ..util.nvd3js.charts.discretebar import DiscreteBarChart
+from ..util.nvd3js.charts.multibar import MultiBarChart
 
 from decimal import Decimal, getcontext
 import logging
@@ -304,4 +306,95 @@ def v2_gear_cost(request):
                         'list' : ['active', 'total' ],
                     }
                 }
+            }
+
+@view_config(route_name='stats', match_param="graph=totalcost", renderer='budget:templates/stats.pt')
+def total_cost(request):
+    log.debug(request.params)
+
+    # { key : [values] }
+    graph_data = []
+
+    aws_costs = DBSession.query(
+                AwsCostAllocation.billing_period_start_date,
+                AwsCostAllocation.total_cost,
+                AwsCostAllocation.credits,
+            ).filter(
+                AwsCostAllocation.record_type == 'InvoiceTotal',
+                AwsCostAllocation.billing_period_start_date >= last_year,
+            ).order_by(
+                asc(AwsCostAllocation.billing_period_start_date)
+            ).all()
+
+    other_expenses = DBSession.query(ExpensedCost).filter(
+                ExpensedCost.invoice_date >= last_year
+            ).order_by(
+                asc(ExpensedCost.invoice_date)
+            ).all()
+
+    # nvd3 requires an exactly equal number of data points for all data sets.
+    # so, we need to ensure we at least set y-values to 0 where there is no
+    # data point.
+    seen_dates = []
+    for cost in aws_costs:
+        if cost.billing_period_start_date not in seen_dates:
+            seen_dates.append(cost.billing_period_start_date)
+
+    for cost in other_expenses:
+        if cost.invoice_date not in seen_dates:
+            seen_dates.append(cost.invoice_date)
+
+    log.debug(seen_dates)
+    # add up all invoiced costs for the month into a single total
+    aws_dated_data = {}
+    for cost in aws_costs:
+        addset(aws_dated_data,cost.billing_period_start_date,cost.total_cost)
+        addset(aws_dated_data,cost.billing_period_start_date,cost.credits)
+
+    aws_data = []
+    for day in seen_dates:
+        flag = False
+        for d in aws_dated_data:
+            if d == day:
+                aws_data.append({'x':d.strftime('%Y-%m-%d'),'y':aws_dated_data[d]})
+                flag = True
+
+        if not flag:
+            aws_data.append({'x':day.strftime('%Y-%m-%d'),'y':0})
+
+    graph_data.append({'key':'AWS','values':aws_data})
+
+    vendors = DBSession.query(
+                    distinct(ExpensedCost.vendor)
+            ).filter(
+                    ExpensedCost.invoice_date >= last_year
+            ).all()
+    vendors = [x[0] for x in vendors]
+
+    other_data = []
+    for vendor in vendors:
+        vendor_data = []
+        # ensure we have values for all dates
+        for day in seen_dates:
+            flag = False
+            for cost in other_expenses:
+                if cost.vendor == vendor and cost.invoice_date == day:
+                    vendor_data.append({
+                            'x' : cost.invoice_date.strftime('%Y-%m-%d'),
+                            'y' : cost.amount
+                    })
+                    flag = True
+            if not flag:
+                vendor_data.append({'x':day.strftime('%Y-%m-%d'), 'y':0})
+        graph_data.append({'key':vendor,'values':vendor_data})
+
+    graph = MultiBarChart(
+                width=1280,
+                height=800
+            )
+    graph.data = graph_data
+
+    return { 'graph' : graph,
+            'notes' : '',
+            'selectors' : {}
             }

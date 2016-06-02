@@ -30,7 +30,7 @@ def insert_data():
                 if idx > 0 and float(el) > 0.0:
                     data.append(ExpensedCost(
                         vendor=header[idx],
-                        invoice_date=datetime.strptime(row[0],'%m/%d/%Y'),
+                        invoice_date=datetime.strptime(row[0],'%Y-%m-%d'),
                         amount=el
                     ))
     DBSession.add_all(data)

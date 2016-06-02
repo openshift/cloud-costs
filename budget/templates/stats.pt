@@ -12,13 +12,14 @@
 
     <link href="${request.static_url('budget:static/nv.d3.css')}" rel="stylesheet">
     <link href="${request.static_url('budget:static/theme.css')}" rel="stylesheet">
+    <link href="${request.static_url('budget:static/stats.css')}" rel="stylesheet">
 
     <script src="${request.static_url('budget:static/d3.js')}" charset="utf-8"></script>
     <script src="${request.static_url('budget:static/nv.d3.js')}" charset="utf-8"></script>
   </head>
 
   <body>
-		<div class='selectors'>
+		<div class='selectors' tal:condition='selectors'>
 				<form method='post' class='selector-form'>
 						<select tal:repeat='selector selectors' tal:attributes='name selector'>
 								<option tal:repeat='opt selectors[selector]["list"]'
@@ -33,7 +34,7 @@
 		<br />
 		<div class='d3-chart-container' id='chart'><svg id='d3-svg'></svg></div>
 		<br />
-		<div class='notes'>
+		<div class='notes' tal:condition='notes != ""'>
 				<h3>Chart Notes:</h3>
 				<p tal:content=notes></p>
 		</div>
