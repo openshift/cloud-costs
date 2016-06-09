@@ -200,6 +200,20 @@ class ExpensedCost(Base):
     invoice_date = Column(DateTime, nullable=False)
     amount = Column(Float, nullable=False)
 
+class GcpLineItem(Base):
+    __tablename__ = 'gcp_line_item'
+
+    id = Column(Integer, primary_key=True)
+    project_name = Column(String(255), nullable=True)
+    line_description = Column(String(255), nullable=False)
+    line_id = Column(String(255), nullable=False)
+    start_time = Column(DateTime, nullable=False)
+    end_time = Column(DateTime, nullable=False)
+    measured_amount = Column(Float, nullable=False)
+    measured_unit = Column(String(255), nullable=False)
+    cost_amount = Column(Float, nullable=False)
+    cost_currency = Column(String(255), nullable=False)
+
 #class MyModel(Base):
 #    __tablename__ = 'models'
 #    id = Column(Integer, primary_key=True)
