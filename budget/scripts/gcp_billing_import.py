@@ -131,6 +131,7 @@ def main(argv=sys.argv):
         file_date = filename_to_date(fn)
         if file_date > last_insert:
             insert_data(fn)
+            # don't insert the same data twice.
             if fn in changed:
                 changed.pop(changed.index(fn))
 
@@ -142,7 +143,7 @@ def main(argv=sys.argv):
         DBSession.query(GcpLineItem).filter(
                 GcpLineItem.start_time.between(fndate, next_day),
                 GcpLineItem.end_time.between(fndate, next_day),
-            ).delete()
+            ).delete(synchronize_session='fetch')
         insert_data(fn)
 
 if '__main__' in __name__:
