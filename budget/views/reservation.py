@@ -40,6 +40,9 @@ from ..util.fileloader import load_json, load_yaml
 from ..util.addset import addset
 from ..models import *
 
+# TODO: move this to config file.
+PURCHASE_DRY_RUN = True
+
 ONE_YEAR = 31536000 # 1 year, in seconds
 THREE_YEAR = ONE_YEAR * 3
 
@@ -68,6 +71,7 @@ def reservation(request):
 
     creds_file = request.registry.settings['creds.dir'] + "/creds.yaml"
     awscreds = load_yaml(creds_file)
+
     # send the account-names to the UI for querying
     return { 'results' : sorted(awscreds.keys()) }
 
@@ -186,36 +190,40 @@ def reservation_instances(request):
                 'data' : data
             }
 
-#FIXME
-@view_config(route_name='reservation',  match_param='loc=purchase', renderer='budget:templates/reservation_purchase.pt')
+@view_config(route_name='reservation',  match_param='loc=purchase', renderer='json')
 def reservation_purchase(request):
     log.debug(request.POST)
 
-    access_key, secret_key = get_creds(account, request.registry.settings)
-
     data = request.POST
     account = data['account']
-    region = data['az'][:-1]
+    region = data['availability_zone'][:-1]
+
+    access_key, secret_key = get_creds(account, request.registry.settings)
 
     ec2conn = boto.ec2.connect_to_region(region,
                         aws_access_key_id=access_key,
                         aws_secret_access_key=secret_key)
 
-    offerings = get_reserved_offerings(ec2conn,
-                                        target_az=data['az'],
-                                        instance_type=data['type'])
+    offerings = get_reservation_offerings(ec2conn,
+                                        availability_zone=data['availability_zone'],
+                                        instance_type=data['instance_type'])
 
-    if offerings:
-        log.debug("would have called: offerings.purchase(instance_count="+str(data['num'])+", dry_run=True)")
+    if len(offerings) == 1:
+        log.debug(offerings[0].describe())
         # See: # https://github.com/boto/boto/blob/develop/boto/ec2/connection.py#3660
         #
-        #reservation = offerings.purchase(instance_count=str(data['num']), dry_run=True)
-        #log.debug(reservation)
-        return { 'results' : 'FAILURE', 'errors' : None }
+        try:
+            reservation = offerings[0].purchase(instance_count=str(data['amount']), dry_run=PURCHASE_DRY_RUN)
+            log.debug(reservation)
+        except boto.exception.EC2ResponseError as e:
+            request.response.status = 500
+            log.debug(e.message)
+            return { 'results' : 'FAIL', 'errors' : e.message }
+        return { 'results' : 'SUCCESS', 'errors' : None }
     else:
-        # TODO: alter the return HTTP code to be 500
         request.response.status = 500
-        return { 'results' : 'FAILURE', 'errors' : 'FAILURE' }
+        log.debug('reservation purchase failed: %s' % offerings)
+        return { 'results' : 'FAIL', 'errors' : offerings }
 
 @view_config(route_name='reservation', match_param='loc=expiration-graph', renderer='budget:templates/structure.pt')
 def reservation_expiration_graph(request):
@@ -282,6 +290,34 @@ def get_reservations(ec2conn, filters={'state':'active'}):
 
     try:
         results = ec2conn.get_all_reserved_instances(filters=filters)
+    except boto.exception.EC2ResponseError as e:
+        log.debug("Error communicating with AWS: %s\n\n" % e.message)
+
+    return results
+
+def get_reservation_offerings(ec2conn,
+                            instance_type=None,
+                            availability_zone=None,
+                            product_description='Linux/UNIX (Amazon VPC)',
+                            offering_type='Partial Upfront',
+                            instance_tenancy='default',
+                            min_duration=0,
+                            max_duration=ONE_YEAR,
+                            filters={}):
+    ''' fetch a list of reserved instance offerings '''
+    results = []
+
+    try:
+        results = ec2conn.get_all_reserved_instances_offerings(
+                        instance_type=instance_type,
+                        availability_zone=availability_zone,
+                        product_description=product_description,
+                        offering_type=offering_type,
+                        instance_tenancy=instance_tenancy,
+                        min_duration=min_duration,
+                        max_duration=max_duration,
+                        filters=filters
+                    )
     except boto.exception.EC2ResponseError as e:
         log.debug("Error communicating with AWS: %s\n\n" % e.message)
 

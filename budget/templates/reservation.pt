@@ -65,9 +65,7 @@
 																				Negative: On-Demand Instances without Reservations (buy more)'>Delta&dagger;</th>
 																		<th>Up-Front</th>
 																		<th title='Positive: Savings (good); Negative: Loss (bad)'>Savings/Loss&dagger;</th>
-																		<!--
 																		<th>Purchase</th>
-																		-->
 																</tr>
 														</thead>
 														<tfoot>
@@ -80,6 +78,7 @@
 																		<th>Delta</th>
 																		<th>Up-Front</th>
 																		<th>Savings/Loss</th>
+																		<th>Purchase</th>
 																</tr>
 														</tfoot>
 												</table>
@@ -125,6 +124,12 @@
 												{ 'data' : 'delta', 'className' : 'delta-col' },
 												{ 'data' : 'upfront', 'className' : 'upfront-col' },
 												{ 'data' : 'savings', 'className' : 'savings-col' },
+												{
+														'data' : null,
+														'className' : 'purchase-control',
+														'orderable' : false,
+														'defaultContent' : '<p class="purchase-button">Purchase</p>'
+												},
 										],
 										"order": [[1, 'desc']],
 										"rowCallback" : function (row, data, index) {
@@ -210,9 +215,13 @@
 																										.html("<div id='chart'><svg id='d3-svg'/></div>"+data)
 																										.dialog({ title: account + ' RI Expiration' })
 																						}
-                })
-
-										}}],
+																				})
+																		}},
+																		{ text : 'Reload',
+																				action: function() {
+																						table.ajax.reload();
+																		}}
+														],
 										'dom' : '<"fg-toolbar ui-toolbar ui-widget-header ui-helper-clearfix ui-corner-tl ui-corner-tr"Blfr>'+
 										't'+
 										'<"fg-toolbar ui-toolbar ui-widget-header ui-helper-clearfix ui-corner-bl ui-corner-br"ip>',
@@ -292,6 +301,29 @@
 												.dialog({ title: size+' in '+az })
 												.dialog("open");
 								});
+
+								// Add event listener for purchases dialog
+								$('table.datatable#'+$(this).attr("id")+' tbody').on('click', 'td.purchase-control', function () {
+										var row = $(this).closest("tr");
+										var account = $(this).closest("table.results_table").attr('id');
+										var az = row.children("td.availability-zone").text();
+										var size = row.children("td.instance-type").text();
+										var delta = Math.abs(row.children("td.delta").text());
+
+										var tbl = '<form class="purchase-form" method="post">' +
+																'Account: ' + '<input type="text" name="account" value="'+account+'"><br>' +
+																'Availability Zone: ' + '<input type="text" name="availability_zone" value="'+az+'"><br>' +
+																'Instance Type: ' + '<input type="text" name="instance_type" value="'+size+'"><br>' +
+																'Amount: ' + '<input type="text" name="amount" value="'+delta+'"><br>' +
+																'<button type="button" onclick="ajaxPurchase()">Purchase</button>' +
+															'</form>';
+										$("#dialog").html(tbl)
+
+										$("#dialog")
+												.dialog({ title: size+' in '+az })
+												.dialog("open");
+								} );
+
 						}); // end datatable.each()
 
 						/* Formatting function for row details */
@@ -328,12 +360,36 @@
 												'</table>';
 								return tbl;
 						}
-				})
+				}) // end of document.ready()
 
 				/* tooltip */
 				$(function() {
 						$( document ).tooltip();
 				});
+
+				function ajaxPurchase() {
+						$.ajax({
+								type : 'POST',
+								url : 'purchase',
+								dataType : 'json',
+								encode : true,
+								data : {
+										'account' : $('input[name=account]').val(),
+										'availability_zone' :  $('input[name=availability_zone]').val(),
+										'instance_type' : $('input[name=instance_type]').val(),
+										'amount' : $('input[name=amount]').val(),
+								},
+								success: function(data) {
+										console.log(data);
+										$("#dialog").dialog("close");
+								},
+								error: function(data) {
+										console.log(data);
+										$("#dialog").dialog().html('<pre>'+data['responseText']+'</pre>');
+								},
+						});
+				}
+
 		// ]]>
 		</script>
 		<div id="dialog"></div>

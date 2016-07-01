@@ -1,3 +1,0 @@
-	<div>
-			<p tal:replace="results">TODO</p>
-	</div>
