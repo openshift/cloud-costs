@@ -88,7 +88,7 @@ def retrieve_files(bucket):
                 key.get_contents_to_filename(cache_dir+'/'+key.name)
             except e:
                 log.error(key.name+": "+e.message)
-    save_json(chksum_file)
+    save_json(checksum_filename, chksum_file)
 
 
 def load_detailed_line_items(begin=datetime(2000,01,01)):

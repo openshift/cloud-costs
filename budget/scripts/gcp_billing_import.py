@@ -97,25 +97,7 @@ def insert_data(filename):
     DBSession.add_all(objects)
     transaction.commit()
 
-def main(argv=sys.argv):
-    if len(argv) < 2:
-        usage(argv)
-
-    config_uri = argv[1]
-    options = parse_vars(argv[2:])
-
-    setup_logging(config_uri)
-    global log
-    log = logging.getLogger(__name__)
-
-    global settings
-    settings = get_appsettings(config_uri, options=options)
-    engine = engine_from_config(settings, 'sqlalchemy.')
-    DBSession.configure(bind=engine)
-
-    global cache_dir
-    cache_dir = settings['cache.dir'] + "/gcp"
-
+def run():
     changed = update_file_cache()
     # check last insert date, then do import here.
     last_insert, = DBSession.query(functions.max(GcpLineItem.end_time)).one()
@@ -145,6 +127,27 @@ def main(argv=sys.argv):
                 GcpLineItem.end_time.between(fndate, next_day),
             ).delete(synchronize_session='fetch')
         insert_data(fn)
+
+def main(argv=sys.argv):
+    if len(argv) < 2:
+        usage(argv)
+
+    config_uri = argv[1]
+    options = parse_vars(argv[2:])
+
+    setup_logging(config_uri)
+    global log
+    log = logging.getLogger(__name__)
+
+    global settings
+    settings = get_appsettings(config_uri, options=options)
+    engine = engine_from_config(settings, 'sqlalchemy.')
+    DBSession.configure(bind=engine)
+
+    global cache_dir
+    cache_dir = settings['cache.dir'] + "/gcp"
+
+    run()
 
 if '__main__' in __name__:
     try:
