@@ -189,7 +189,7 @@ def cost_allocation_graph(request):
 
     # setting y_domain because the default calculation often misses the max value
     graph = DiscreteBarChart(
-                y_domain=[0, max([r.total_cost for r in results])],
+                y_domain=str([0, max([r.total_cost for r in results])]),
                 show_xaxis='false'
             )
     graph.data = [{ 'key' : str(caller), 'values' : graph_data}]

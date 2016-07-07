@@ -37,6 +37,7 @@ def main(global_config, **settings):
     # all other routes...
     config.add_route('root', '/')
     config.add_route('stats', '/stats/{graph}')
+    config.add_route('stats_index', '/stats')
     config.add_route('myview', '/myview')
     config.add_route('reservation', '/reservation/{loc}')
     config.add_route('cost_allocation', '/cost_allocation/{type}')

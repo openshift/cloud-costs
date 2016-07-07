@@ -18,11 +18,9 @@ import logging
 log = logging.getLogger(__name__)
 last_year = datetime.now() - timedelta(days=365)
 
-@view_config(route_name='stats', match_param='graph=default', renderer='budget:templates/stats.pt')
-def stats(request):
-    graph = PieChart()
-    graph.data = [ {'label':'foo', 'value':5.0 }, {'label':'bar', 'value':3.0 }]
-    return { 'graph' : graph }
+@view_config(route_name='stats_index', renderer='budget:templates/stats.pt')
+def stats_index(request):
+    return { 'graph' : None, 'selectors': {}, 'notes': '' }
 
 @view_config(route_name='stats', match_param="graph=account", renderer='budget:templates/stats.pt')
 def cost_by_account(request):
@@ -30,12 +28,12 @@ def cost_by_account(request):
 
     data = DBSession.query(
                 AwsInvoiceLineItem.linked_account_id,
-                AwsLinkedAccountId.account_name,
+                AwsAccountMetadata.account_name,
                 AwsInvoiceLineItem.blended_cost,
                 AwsInvoiceLineItem.usage_start_date,
             ).filter(
                 AwsInvoiceLineItem.linked_account_id != None,
-                AwsInvoiceLineItem.linked_account_id == AwsLinkedAccountId.linked_account_id,
+                AwsInvoiceLineItem.linked_account_id == AwsAccountMetadata.account_id,
                 AwsInvoiceLineItem.usage_start_date >= last_year,
             ).all()
 
@@ -64,7 +62,8 @@ def cost_by_account(request):
                         'selected' : selected_date,
                         'list' : dates,
                     }
-                }
+                },
+             'notes' : ''
             }
 
 @view_config(route_name='stats', match_param="graph=activity", renderer='budget:templates/stats.pt')
@@ -102,6 +101,8 @@ def gear_activity_distribution(request):
                     OpenshiftProfileStats.profile_name == selected_profile
             ).all()
 
+    log.debug(stats)
+
     graph_data = []
     for stat in stats:
         graph_data.append({ 'label' : 'Active Gears',
@@ -113,6 +114,7 @@ def gear_activity_distribution(request):
         graph_data.append({ 'label' : 'Unknown Gears',
                             'value' : int(stat.gears_unknown_count) })
 
+    log.debug(graph_data)
     graph = PieChart(
                 width=400,
                 height=400,
@@ -131,7 +133,8 @@ def gear_activity_distribution(request):
                         'selected' : selected_profile,
                         'list' : profiles,
                     }
-                }
+                },
+             'notes' : ''
             }
 
 @view_config(route_name='stats', match_param="graph=nodes", renderer='budget:templates/stats.pt')
@@ -176,7 +179,8 @@ def node_distribution(request):
                         'selected' : selected_date,
                         'list' : dates,
                     }
-                }
+                },
+             'notes' : ''
             }
 
 @view_config(route_name='stats', match_param="graph=v2gearcost", renderer='budget:templates/stats.pt')
