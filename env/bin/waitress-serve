@@ -1,10 +1,10 @@
 #!/home/blentz/git/budget/env/bin/python
-# EASY-INSTALL-ENTRY-SCRIPT: 'waitress==0.8.10','console_scripts','waitress-serve'
-__requires__ = 'waitress==0.8.10'
+# EASY-INSTALL-ENTRY-SCRIPT: 'waitress','console_scripts','waitress-serve'
+__requires__ = 'waitress'
 import sys
 from pkg_resources import load_entry_point
 
 if __name__ == '__main__':
     sys.exit(
-        load_entry_point('waitress==0.8.10', 'console_scripts', 'waitress-serve')()
+        load_entry_point('waitress', 'console_scripts', 'waitress-serve')()
     )

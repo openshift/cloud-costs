@@ -1,10 +1,10 @@
 #!/home/blentz/git/budget/env/bin/python
-# EASY-INSTALL-ENTRY-SCRIPT: 'js.jqueryui==1.10.3','console_scripts','download_jqueryui'
-__requires__ = 'js.jqueryui==1.10.3'
+# EASY-INSTALL-ENTRY-SCRIPT: 'js.jqueryui','console_scripts','download_jqueryui'
+__requires__ = 'js.jqueryui'
 import sys
 from pkg_resources import load_entry_point
 
 if __name__ == '__main__':
     sys.exit(
-        load_entry_point('js.jqueryui==1.10.3', 'console_scripts', 'download_jqueryui')()
+        load_entry_point('js.jqueryui', 'console_scripts', 'download_jqueryui')()
     )
