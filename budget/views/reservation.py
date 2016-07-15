@@ -17,7 +17,7 @@
 # Purpose: Report statistics on allocation of reserved instances
 #
 
-import boto.ec2
+import boto
 import csv
 import dateutil.parser
 import json
@@ -65,15 +65,24 @@ getcontext().prec = 3
 # set locale
 locale.setlocale(locale.LC_ALL, "en_US")
 
+class DataHolder(object):
+    ''' object for storing data '''
+    def __init__(self, **kwargs):
+        self.put(**kwargs)
+
+    def __repr__(self):
+        return "%s: %s" % (self.__class__, self.__dict__)
+
+    def put(self, **kwargs):
+        ''' assign arbitrary data to instance variables '''
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
 @view_config(route_name='reservation', match_param='loc=list', renderer='budget:templates/reservation.pt')
 def reservation(request):
-    log.debug(request.params)
-
-    creds_file = request.registry.settings['creds.dir'] + "/creds.yaml"
-    awscreds = load_yaml(creds_file)
-
-    # send the account-names to the UI for querying
-    return { 'results' : sorted(awscreds.keys()) }
+    # empty pass-through to facilitate loading the page while sourcing the real
+    # data through an ajax call.
+    return {}
 
 #FIXME
 @view_config(route_name='reservation', match_param='loc=csv', renderer='budget:templates/reservation_csv.pt')
@@ -104,83 +113,87 @@ def reservation_csv(request):
 def reservation_data(request):
     log.debug(request.params)
 
-    account = request.POST['id']
-    access_key, secret_key = get_creds(account, request.registry.settings)
+    creds_file = request.registry.settings['creds.dir'] + "/creds.yaml"
+    accounts = sorted(load_yaml(creds_file).keys())
 
     global cache_dir
     cache_dir = request.registry.settings['cache.dir']
 
-    log.debug('fetching reservations for %s' % account)
+    data = {}
+    for account in accounts:
 
-    data = []
+        num = get_account_number(account, request.registry.settings)
+        res = get_reservations(num)
+        inst = get_instances(num)
 
-    regions = boto.ec2.regions()
-    for region in regions:
-        # skip restricted access regions
-        if region.name in [ 'us-gov-west-1', 'cn-north-1' ]:
-            continue
+        for i in inst:
+            tup = (i.instance_type, i.availability_zone)
 
-        log.debug('checking %s' % region.name)
-        ec2 = boto.ec2.connect_to_region(region.name,
-                aws_access_key_id=access_key,
-                aws_secret_access_key=secret_key)
+            if tup not in data.keys():
+                dh = DataHolder(
+                            instance_type=i.instance_type,
+                            availability_zone=i.availability_zone,
+                            instances={},
+                            reservations={}
+                        )
+                data[tup] = dh
 
-        reservations = get_reservations(ec2)
-        instances = get_instances(ec2)
-        stats = calculate_reservation_stats(reservations, instances)
-        costs = calculate_costs(stats)
-        expirations = get_expirations(reservations)
+            if account in data[tup].instances.keys():
+                data[tup].instances[account].append(i)
+            else:
+                data[tup].instances[account] = [i]
 
-        #TODO: add detail with number of days remaining on each RI.
+        for r in res:
+            tup = (r.instance_type, r.availability_zone)
 
-        data.append(layout_data(reservations,
-                                instances,
-                                stats,
-                                costs,
-                                expirations))
+            if tup not in data.keys():
+                dh = DataHolder(
+                            instance_type=r.instance_type,
+                            availability_zone=r.availability_zone,
+                            instances={},
+                            reservations={}
+                        )
+                data[tup] = dh
+            if account in data[tup].reservations.keys():
+                data[tup].reservations[account].append(r)
+            else:
+                data[tup].reservations[account] = [r]
 
-    # flatten data
-    data = [x for items in data for x in items]
+    query_cache = {}
+    for tup, dh in data.items():
+        dh = calculate_reservation_stats(dh)
+        dh, query_cache = calculate_costs(dh, query_cache)
+        dh = get_expirations(dh)
+        data[tup] = dh
 
     # data formatted for jQuery DataTable
     return {
                 'draw' : 1,
                 'recordsTotal' : len(data),
                 'recordsFiltered' : len(data),
-                'data' : data
+                'data' : layout_data(data)
             }
 
 @view_config(route_name='reservation',  match_param='loc=instances', renderer='json')
 def reservation_instances(request):
     log.debug(request.params)
 
-    account = request.POST['account']
-    access_key, secret_key = get_creds(account, request.registry.settings)
+    creds_file = request.registry.settings['creds.dir'] + "/creds.yaml"
+    accounts = sorted(load_yaml(creds_file).keys())
 
     az = request.POST['availability-zone']
     size = request.POST['instance-type']
-    ec2 = boto.ec2.connect_to_region(az[:-1],
-                                    aws_access_key_id=access_key,
-                                    aws_secret_access_key=secret_key)
-    instances = get_instances(ec2, filters={
-                                            'instance-state-name':'running',
-                                            'instance-type':size,
-                                            'availability-zone':az
-                                            })
 
     data = []
-    for i in instances:
-        if 'Name' in i.tags:
-            name = i.tags['Name']
-        else:
-            name = 'No Name'
-
-        if 'environment' in i.tags:
-            env = i.tags['environment']
-        else:
-            env = 'No Environment'
-
-        data.append({'id':i.id,'name':name,'env':env})
+    for account in accounts:
+        num = get_account_number(account, request.registry.settings)
+        inst = get_instances(num)
+        for i in inst:
+            if i.availability_zone == az and i.instance_type == size:
+                data.append({'account' : account,
+                         'id' : i.instance_id,
+                        'name' : i.name,
+                        'env' : i.environment})
 
     # data formatted for jQuery DataTable
     return {
@@ -217,62 +230,64 @@ def reservation_purchase(request):
             log.debug(reservation)
         except boto.exception.EC2ResponseError as e:
             request.response.status = 500
-            log.debug(e.message)
+            log.error(e.message)
             return { 'results' : 'FAIL', 'errors' : e.message }
         return { 'results' : 'SUCCESS', 'errors' : None }
     else:
         request.response.status = 500
-        log.debug('reservation purchase failed: %s' % offerings)
+        log.error('reservation purchase failed: %s' % offerings)
         return { 'results' : 'FAIL', 'errors' : offerings }
 
 @view_config(route_name='reservation', match_param='loc=expiration-graph', renderer='budget:templates/structure.pt')
 def reservation_expiration_graph(request):
     log.debug(request.params)
 
-    account = None
-    if 'account' in request.params:
-        account = request.params['account']
-    if not account:
-        log.debug('no data')
-        return { 'data' : 'No graph to show' }
-
-    access_key, secret_key = get_creds(account, request.registry.settings)
-
     expirations = None
     data = {}
 
-    regions = boto.ec2.regions()
-    for region in regions:
-        # skip restricted access regions
-        if region.name in [ 'us-gov-west-1', 'cn-north-1' ]:
-            continue
+    creds_file = request.registry.settings['creds.dir'] + "/creds.yaml"
+    accounts = sorted(load_yaml(creds_file).keys())
+    for account in accounts:
 
-        log.debug('checking %s' % region.name)
-        ec2 = boto.ec2.connect_to_region(region.name,
-                aws_access_key_id=access_key,
-                aws_secret_access_key=secret_key)
+        num = get_account_number(account, request.registry.settings)
+        res = get_reservations(num)
 
-        reservations = get_reservations(ec2)
-        expirations = get_expirations(reservations)
+        for r in res:
+            tup = (r.instance_type, r.availability_zone)
 
-        for zone_size in expirations:
-            for ri in expirations[zone_size]:
-                addset(data, ri['end_date'], ri['count'])
+            if tup not in data.keys():
+                dh = DataHolder(
+                            instance_type=r.instance_type,
+                            availability_zone=r.availability_zone,
+                            instances={},
+                            reservations={}
+                        )
+                data[tup] = dh
+            if account in data[tup].reservations.keys():
+                data[tup].reservations[account].append(r)
+            else:
+                data[tup].reservations[account] = [r]
+
+
+    g_data = {}
+    for tup, dh in data.items():
+        dh = get_expirations(dh)
+
+        for ri in dh.ri_expirations[tup]:
+            addset(g_data, ri['end_date'], ri['count'])
 
     if not data:
-        log.debug('no data')
+        log.info('no graph data')
         return { 'data' : 'No graph to show' }
-    log.debug(data)
 
     graph_data = []
-    for key in sorted(data.keys()):
+    for key in sorted(g_data.keys()):
         graph_data.append({ 'label': key,
-                            'value': data[key]})
+                            'value': int(g_data[key])})
 
     graph = DiscreteBarChart(stagger_labels='true')
-    graph.data = [{ 'key' : str(account), 'values' : graph_data}]
+    graph.data = [{ 'key' : 'reservations', 'values' : graph_data}]
 
-    log.debug(graph_data)
     return { 'data' : graph }
 
 #########################################################
@@ -284,15 +299,17 @@ def get_creds(account, settings):
     secret_key = awscreds[account]['secret_key']
     return (access_key, secret_key)
 
-def get_reservations(ec2conn, filters={'state':'active'}):
-    ''' fetch a list of reservations, default is active reservations '''
-    results = []
+def get_account_number(name, settings):
+    creds_file = settings['creds.dir'] + "/creds.yaml"
+    return load_yaml(creds_file)[name]['account']
 
-    try:
-        results = ec2conn.get_all_reserved_instances(filters=filters)
-    except boto.exception.EC2ResponseError as e:
-        log.debug("Error communicating with AWS: %s\n\n" % e.message)
-
+def get_reservations(account):
+    ''' fetch a list of active reservations '''
+    results = DBSession.query(AwsReservationInventory).filter(
+                    AwsReservationInventory.account == account,
+                    AwsReservationInventory.expiration_date >= datetime.now(),
+                    AwsReservationInventory.purchase_date <= datetime.now()
+                ).all()
     return results
 
 def get_reservation_offerings(ec2conn,
@@ -319,49 +336,45 @@ def get_reservation_offerings(ec2conn,
                         filters=filters
                     )
     except boto.exception.EC2ResponseError as e:
-        log.debug("Error communicating with AWS: %s\n\n" % e.message)
+        log.error("Error communicating with AWS: %s\n\n" % e.message)
 
     return results
 
-def get_instances(ec2conn, filters={'instance-state-name':'running'}):
-    ''' fetch a list of instances, default is running instances '''
-    results = []
-
-    try:
-        results = ec2conn.get_only_instances(filters=filters)
-    except boto.exception.EC2ResponseError as e:
-        log.debug("Error communicating with AWS: %s\n\n" % e.message)
-    except SSLError  as e:
-        log.debug("Error communicating with AWS: %s\n\n" % e.message)
-
+def get_instances(account):
+    ''' fetch a list of running instances '''
+    results = DBSession.query(AwsInstanceInventory).filter(
+                    AwsInstanceInventory.status == 'running',
+                    AwsInstanceInventory.account == account,
+                ).all()
     return results
 
-def calculate_reservation_stats(reservations, instances):
+def calculate_reservation_stats(data_holder):
     totals = {}
     running_instances = {}
     reserved_instances = {}
 
-    for inst in instances:
-        az   = inst.placement
-        size = inst.instance_type
+    for account, inst_list in data_holder.instances.items():
+        for inst in inst_list:
+            az   = inst.availability_zone
+            size = inst.instance_type
 
-        if (size,az) not in totals.keys():
-            totals[(size,az)] = defaultdict(lambda: 0)
+            if (size,az) not in totals.keys():
+                totals[(size,az)] = defaultdict(lambda: 0)
 
-        # do a count of each type/az combination
-        running_instances[(size,az)] = running_instances.get((size,az),0)+1
-        totals[(size,az)]['running'] = totals[(size,az)].get('running',0)+1
+            # do a count of each type/az combination
+            running_instances[(size,az)] = running_instances.get((size,az),0)+1
+            totals[(size,az)]['running'] = totals[(size,az)].get('running',0)+1
 
-    for ri in reservations:
-        az   = ri.availability_zone
-        size = ri.instance_type
+    for account, ri_list in data_holder.reservations.items():
+        for ri in ri_list:
+            az   = ri.availability_zone
+            size = ri.instance_type
 
-        if (size,az) not in totals.keys():
-            totals[(size,az)] = defaultdict(lambda: 0)
+            if (size,az) not in totals.keys():
+                totals[(size,az)] = defaultdict(lambda: 0)
 
-        reserved_instances[(size,az)] = reserved_instances.get((size,az),0)+ri.instance_count
-        totals[(size,az)]['reserved'] = totals[(size,az)].get('reserved',0)+ri.instance_count
-
+            reserved_instances[(size,az)] = reserved_instances.get((size,az),0)+ri.instance_count
+            totals[(size,az)]['reserved'] = totals[(size,az)].get('reserved',0)+ri.instance_count
 
     # for each type/az combination, the diff will be
     # - postive if we have unused reservations
@@ -374,48 +387,60 @@ def calculate_reservation_stats(reservations, instances):
         if not placement in reserved_instances:
             diff[placement] = -running_instances[placement]
 
-    return { "delta" : diff, "totals" : totals }
+    data_holder.put(ri_delta=diff, ri_totals=totals)
+    return data_holder
 
-def calculate_costs(stats):
+def calculate_costs(data_holder, cache={}):
     cost = {}
 
-    for (size,az) in stats['totals']:
+    for (size,az) in data_holder.ri_totals:
         if (size,az) not in cost:
             cost[(size,az)] = {}
 
-        delta = stats['delta'][(size,az)]
+        delta = data_holder.ri_delta[(size,az)]
+
+        r_kwargs = { 'instance_type' : size,
+                        'region' : az[:-1],
+                        'pricing' : 'Reserved',
+                        'lease_contract_length' : '1yr',
+                        'purchase_option' : 'Partial Upfront' }
+        od_params = (size, az[:-1], 'On-Demand')
+        r_params = (size, az[:-1], 'Reserved')
 
         if delta < 0:
-            ri = get_price(instance_type=size,
-                        region=az[:-1],
-                        pricing='Reserved',
-                        lease_contract_length='1yr',
-                        purchase_option='Partial Upfront')
+            if r_params in cache.keys():
+                ri = cache[r_params]
+            else:
+                ri = get_price(**r_kwargs)
+                cache[r_params] = ri
             cost[(size,az)]['up-front'] = ri['Quantity'] * -delta
         else:
             cost[(size,az)]['up-front'] = 0
 
+        if data_holder.ri_delta[(size,az)] != 0:
             # calc savings of reserved over on-demand.
-        if stats['delta'][(size,az)] != 0:
-            savings = calculate_monthly_savings(size, az[:-1]) * -delta
+            if od_params in cache.keys():
+                od_price = cache[od_params]
+            else:
+                od_price = get_price(instance_type=size, region=az[:-1])
+                cache[od_params] = od_price
+
+            if r_params in cache.keys():
+                ri_price = cache[r_params]
+            else:
+                ri_price = get_price(**r_kwargs)
+                cache[r_params] = ri_price
+
+            monthly_on_demand = od_price['Hrs'] * 24 * 30
+            monthly_ri_amortized = (ri_price['Hrs'] * 24 * 30) + \
+                                    (ri_price['Quantity'] / 12)
+            savings = (monthly_on_demand - monthly_ri_amortized) * -delta
             cost[(size,az)]['savings'] = savings
         else:
             cost[(size,az)]['savings'] = 0
 
-    return cost
-
-def calculate_monthly_savings(instance_type, region):
-    od_price = get_price(instance_type=instance_type, region=region)
-    ri_price = get_price(instance_type=instance_type,
-                        region=region,
-                        pricing='Reserved',
-                        lease_contract_length='1yr',
-                        purchase_option='Partial Upfront')
-
-    monthly_on_demand = od_price['Hrs'] * 24 * 30
-    monthly_ri_amortized = (ri_price['Hrs'] * 24 * 30) + \
-                            (ri_price['Quantity'] / 12)
-    return (monthly_on_demand - monthly_ri_amortized)
+    data_holder.put(ri_costs=cost)
+    return (data_holder, cache)
 
 def get_price(instance_type='t1.micro', region='us-east-1', tenancy='Shared',
         pricing='OnDemand', **kwargs):
@@ -453,8 +478,6 @@ def get_price(instance_type='t1.micro', region='us-east-1', tenancy='Shared',
                     AwsPrice.sku == AwsProduct.sku
               ).all()
 
-    log.debug('%s, %s, %s - %s results returned' % (instance_type, region,
-                                                    pricing, len(products)))
     costs = {}
     for (d, t) in products:
         price_dimensions = json.loads(d)
@@ -508,45 +531,43 @@ def region_lookup(region='us-east-1'):
             return x['region_name']
     return None
 
-def calculate_days_left(reserved_instance):
-    start_date = dateutil.parser.parse(reserved_instance.start)
-    end_date   = start_date + timedelta(0,reserved_instance.duration)
-    today      = datetime.now(dateutil.tz.tzlocal())
-    return (end_date - today).days
-
-def get_expirations(reservations):
+def get_expirations(data_holder):
     ''' given a list of ReservedInstances, return their expiration dates and
     number of instances expiring '''
 
     data = defaultdict(lambda: [])
-    for reservation in reservations:
-        az = reservation.availability_zone
-        size = reservation.instance_type
+    for account, ri_list in data_holder.reservations.items():
+        for reservation in ri_list:
+            az = reservation.availability_zone
+            size = reservation.instance_type
 
-        data_dict = {
-                'end_date' : dateutil.parser.parse(reservation.end).strftime("%Y-%m-%d"),
-                'count' : reservation.instance_count,
-                'days_left' : calculate_days_left(reservation)
-            }
-        data[(size,az)].append(data_dict)
-    return data
+            data_dict = {
+                    'account' : account,
+                    'end_date' : reservation.expiration_date.strftime("%Y-%m-%d"),
+                    'count' : reservation.instance_count,
+                    'days_left' : (reservation.expiration_date - datetime.now()).days
+                    }
+            data[(size,az)].append(data_dict)
+    data_holder.put(ri_expirations=data)
+    return data_holder
 
-def layout_data(reservations, instances, stats, costs, expirations):
+def layout_data(data):
     ''' format the data in the way expected by the dataTable '''
-    data = []
 
-    for (size, az) in stats['totals']:
-        data.append({
-            'zone' : str(az),
-            'type' : str(size),
-            'running' : stats['totals'][(size,az)]['running'],
-            'reserved' : stats['totals'][(size,az)]['reserved'],
-            'delta' : stats['delta'][(size,az)],
-            'upfront' : locale.currency(costs[(size,az)]['up-front'],
-                                        grouping=True),
-            'savings' : locale.currency(costs[(size,az)]['savings'],
-                                        grouping=True),
-            'expiration' : expirations[(size,az)]
-        })
+    # each table row has these fields:
+    # Expiration Details | AZ | Type | Running | Reserved | Delta | Up-Front | Savings
+    table_rows = []
 
-    return data
+    for tup, dh in data.items():
+        row = {
+                'zone' : tup[1],
+                'type' : tup[0],
+                'running' : dh.ri_totals[tup]['running'],
+                'reserved' : dh.ri_totals[tup]['reserved'],
+                'delta' : dh.ri_delta[tup],
+                'upfront' : locale.currency(dh.ri_costs[tup]['up-front'], grouping=True),
+                'savings' : locale.currency(dh.ri_costs[tup]['savings'], grouping=True),
+                'expiration' : dh.ri_expirations[tup],
+            }
+        table_rows.append(row)
+    return table_rows

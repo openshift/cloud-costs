@@ -141,6 +141,17 @@ class AwsPrice(Base):
     term_attributes = Column(Text(), nullable=True)
     json = Column(Text(), nullable=True)
 
+#XXX: half-baked idea - aggregate costs by product
+#class AwsProductCostAggregate(Base):
+#    __tablename__ = 'aws_product_cost_aggregate'
+#    id = Column(Integer, primary_key=True)
+#    linked_account_id = Column(BigInteger, nullable=True)
+#    product_name = Column(String(255), nullable=True)
+#    usage_start_date = Column(DateTime, nullable=False)
+#    usage_end_date = Column(DateTime, nullable=False)
+#    blended_cost = Column(Float, nullable=True)
+#    unblended_cost = Column(Float, nullable=True)
+
 class OpenshiftProfileStats(Base):
     __tablename__ = 'openshift_profile_stats'
 
@@ -213,6 +224,33 @@ class GcpLineItem(Base):
     measured_unit = Column(String(255), nullable=False)
     cost_amount = Column(Float, nullable=False)
     cost_currency = Column(String(255), nullable=False)
+
+class AwsInstanceInventory(Base):
+    __tablename__ = 'aws_instance_inventory'
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(64), nullable=True)
+    environment = Column(String(64), nullable=True)
+    instance_id = Column(String(64), nullable=False, unique=True)
+    instance_type = Column(String(64), nullable=False)
+    availability_zone = Column(String(64), nullable=False)
+    account = Column(BigInteger, nullable=False)
+    status = Column(String(16), nullable=False)
+    launch_date = Column(DateTime, nullable=False)
+    check_date = Column(DateTime, nullable=False)
+
+class AwsReservationInventory(Base):
+    __tablename__ = 'aws_reservation_inventory'
+
+    id = Column(Integer, primary_key=True)
+    reservation_id = Column(String(64), nullable=False, unique=True)
+    instance_type = Column(String(64), nullable=False)
+    availability_zone = Column(String(64), nullable=False)
+    account = Column(BigInteger, nullable=False)
+    purchase_date = Column(DateTime, nullable=False)
+    expiration_date = Column(DateTime, nullable=False)
+    instance_count = Column(Integer, nullable=False)
+
 
 #class MyModel(Base):
 #    __tablename__ = 'models'
