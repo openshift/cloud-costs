@@ -42,7 +42,7 @@ $(document).ready(function() {
                     'defaultContent' : '<p class="purchase-button">Purchase</p>'
                 },
             ],
-            "order": [[1, 'desc']],
+            "order": [[5, 'asc']],
             "rowCallback" : function (row, data, index) {
                 var className = "";
                 if (parseInt(data.delta) > 0) {

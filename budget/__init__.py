@@ -42,5 +42,8 @@ def main(global_config, **settings):
     config.add_route('reservation', '/reservation/{loc}')
     config.add_route('cost_allocation', '/cost_allocation/{type}')
 
+    # custom renderers
+    config.add_renderer('csv', 'budget.renderers.CSVRenderer')
+
     config.scan()
     return config.make_wsgi_app()
