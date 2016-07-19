@@ -8,7 +8,7 @@
     <meta name="author" content="Brett Lentz">
     <link rel="shortcut icon" href="${request.static_url('budget:static/pyramid-16x16.png')}">
 
-    <title>OpenShift Statistics and Reporting</title>
+    <title>Statistics and Reporting</title>
 
     <link href="${request.static_url('budget:static/nv.d3.css')}" rel="stylesheet">
     <link href="${request.static_url('budget:static/theme.css')}" rel="stylesheet">
