@@ -1,6 +1,6 @@
 #!/bin/bash
 
-TOP=/home/blentz/git/budget
+TOP=${HOME}/git/cloud-costs
 
 cd $TOP
 source ${TOP}/env/bin/activate

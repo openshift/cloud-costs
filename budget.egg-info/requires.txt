@@ -1,5 +1,6 @@
 boto
 fa.jquery
+gcloud
 mysql-python
 paramiko
 pyramid

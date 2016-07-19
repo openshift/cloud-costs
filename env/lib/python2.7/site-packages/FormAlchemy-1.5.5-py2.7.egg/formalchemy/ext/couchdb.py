@@ -110,7 +110,7 @@ try:
     from couchdbkit import schema
 except ImportError:
     from unittest.case import SkipTest
-    raise SkipTest("couchdbkit is not available")
+    raise ImportError("couchdbkit is not available")
 
 from datetime import datetime
 

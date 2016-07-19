@@ -1,9 +1,9 @@
 #!/bin/bash
 
-TOP=/home/blentz/git/budget
+TOP=${HOME}/git/cloud-costs
 
 cd $TOP
-source /home/blentz/bin/prod.env
+source ${HOME}/bin/prod.env
 source ${TOP}/env/bin/activate
 # TODO
 # python -m 'budget.scripts.openshift_stats' ${TOP}/development.ini

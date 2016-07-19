@@ -7,6 +7,7 @@ setup.py
 budget/__init__.py
 budget/forms.py
 budget/models.py
+budget/renderers.py
 budget/tests.py
 budget.egg-info/PKG-INFO
 budget.egg-info/SOURCES.txt
@@ -16,8 +17,8 @@ budget.egg-info/not-zip-safe
 budget.egg-info/requires.txt
 budget.egg-info/top_level.txt
 budget/scripts/__init__.py
-budget/scripts/aws_aggregate.py
 budget/scripts/aws_billing_import.py
+budget/scripts/aws_inventory_update.py
 budget/scripts/aws_pricing_data.py
 budget/scripts/gcp_billing_import.py
 budget/scripts/initializedb.py
@@ -73,14 +74,6 @@ budget/static/DataTables-1.10.11/examples/ajax/objects.html
 budget/static/DataTables-1.10.11/examples/ajax/objects_subarrays.html
 budget/static/DataTables-1.10.11/examples/ajax/orthogonal-data.html
 budget/static/DataTables-1.10.11/examples/ajax/simple.html
-budget/static/DataTables-1.10.11/examples/ajax/data/arrays.txt
-budget/static/DataTables-1.10.11/examples/ajax/data/arrays_custom_prop.txt
-budget/static/DataTables-1.10.11/examples/ajax/data/arrays_subobjects.txt
-budget/static/DataTables-1.10.11/examples/ajax/data/objects.txt
-budget/static/DataTables-1.10.11/examples/ajax/data/objects_deep.txt
-budget/static/DataTables-1.10.11/examples/ajax/data/objects_root_array.txt
-budget/static/DataTables-1.10.11/examples/ajax/data/objects_subarrays.txt
-budget/static/DataTables-1.10.11/examples/ajax/data/orthogonal.txt
 budget/static/DataTables-1.10.11/examples/api/add_row.html
 budget/static/DataTables-1.10.11/examples/api/api_in_init.html
 budget/static/DataTables-1.10.11/examples/api/counter_columns.html
@@ -487,7 +480,6 @@ budget/static/DataTables-1.10.11/extensions/Scroller/css/scroller.foundation.min
 budget/static/DataTables-1.10.11/extensions/Scroller/css/scroller.jqueryui.css
 budget/static/DataTables-1.10.11/extensions/Scroller/css/scroller.jqueryui.min.css
 budget/static/DataTables-1.10.11/extensions/Scroller/examples/index.html
-budget/static/DataTables-1.10.11/extensions/Scroller/examples/data/2500.txt
 budget/static/DataTables-1.10.11/extensions/Scroller/examples/initialisation/api_scrolling.html
 budget/static/DataTables-1.10.11/extensions/Scroller/examples/initialisation/fixedColumns.html
 budget/static/DataTables-1.10.11/extensions/Scroller/examples/initialisation/index.html
@@ -618,9 +610,7 @@ budget/static/jquery-ui-1.11.4/images/ui-icons_ef8c08_256x240.png
 budget/static/jquery-ui-1.11.4/images/ui-icons_ffd27a_256x240.png
 budget/static/jquery-ui-1.11.4/images/ui-icons_ffffff_256x240.png
 budget/templates/cost_allocation.pt
-budget/templates/mytemplate.pt
 budget/templates/reservation.pt
-budget/templates/reservation_csv.pt
 budget/templates/root.pt
 budget/templates/stats.pt
 budget/templates/structure.pt
@@ -636,7 +626,6 @@ budget/util/nvd3js/charts/multibar.py
 budget/util/nvd3js/charts/piechart.py
 budget/views/__init__.py
 budget/views/cost_allocation.py
-budget/views/myview.py
 budget/views/reservation.py
 budget/views/root.py
 budget/views/stats.py

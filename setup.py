@@ -11,6 +11,7 @@ with open(os.path.join(here, 'CHANGES.txt')) as f:
 requires = [
     'boto',
     'fa.jquery',
+    'gcloud',
     'mysql-python',
     'paramiko',
     'pyramid',
