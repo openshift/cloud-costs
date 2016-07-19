@@ -1,5 +1,11 @@
-budget README
+cloud-costs README
 ==================
+
+This is a project using the Pyramid framework (http://www.pylonsproject.org/).
+
+The purpose is to develop a set of utilities and tools that provides meaningful
+information for tracking costs and usage associated with running infrastructure
+on top of cloud services.
 
 Getting Started
 ---------------
@@ -10,5 +16,5 @@ Getting Started
 
 - $VENV/bin/initialize_budget_db development.ini
 
-- $VENV/bin/pserve development.ini
+- $VENV/bin/pserve --reload development.ini
 
