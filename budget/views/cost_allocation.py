@@ -10,7 +10,7 @@ from sqlalchemy import or_, and_, not_, asc
 
 from ..models import *
 from ..util.addset import addset
-from ..util.nvd3js.charts.discretebar import DiscreteBarChart
+from budget.util.nvd3js import *
 
 import locale
 import logging
@@ -189,8 +189,8 @@ def cost_allocation_graph(request):
 
     # setting y_domain because the default calculation often misses the max value
     graph = DiscreteBarChart(
-                y_domain=str([0, max([r.total_cost for r in results])]),
-                show_xaxis='false'
+                yDomain=[0, max([r.total_cost for r in results])],
+                showXAxis=False
             )
     graph.data = [{ 'key' : str(caller), 'values' : graph_data}]
     return { 'data' : graph }

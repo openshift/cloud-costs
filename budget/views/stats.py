@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from decimal import Decimal, getcontext
 
 from pyramid.response import Response
 from pyramid.view import view_config
@@ -8,12 +9,10 @@ from sqlalchemy import not_, asc, distinct
 
 from ..models import *
 from ..util.addset import addset
-from ..util.nvd3js.charts.piechart import PieChart
-from ..util.nvd3js.charts.discretebar import DiscreteBarChart
-from ..util.nvd3js.charts.multibar import MultiBarChart
 
-from decimal import Decimal, getcontext
 import logging
+
+from budget.util.nvd3js import *
 
 log = logging.getLogger(__name__)
 last_year = datetime.now() - timedelta(days=365)
@@ -51,9 +50,9 @@ def cost_by_account(request):
     graph = PieChart(
                 width=400,
                 height=400,
-                label_type='percent',
-                label_threshold=0.05,
-                legend_position='right')
+                labelType='percent',
+                labelThreshold=0.05,
+                legendPosition='right')
     graph.data = graph_data
 
     return { 'graph' : graph,
@@ -118,9 +117,9 @@ def gear_activity_distribution(request):
     graph = PieChart(
                 width=400,
                 height=400,
-                label_type='percent',
-                label_threshold=0.02,
-                legend_position='right')
+                labelType='percent',
+                labelThreshold=0.02,
+                legendPosition='right')
     graph.data = graph_data
 
     return { 'graph' : graph,
@@ -168,9 +167,9 @@ def node_distribution(request):
     graph = PieChart(
                 width=400,
                 height=400,
-                label_type='percent',
-                label_threshold=0.03,
-                legend_position='right')
+                labelType='percent',
+                labelThreshold=0.03,
+                legendPosition='right')
     graph.data = graph_data
 
     return { 'graph' : graph,
@@ -291,9 +290,7 @@ def v2_gear_cost(request):
     graph = DiscreteBarChart(
                 width=900,
                 height=600,
-                show_values='true',
-                tooltips='false',
-                stagger_labels='true'
+                staggerLabels='true'
             )
     graph.data = [{ 'key' : 'Costs Per Gear (%s)' % gear_type, 'values' : graph_data }]
 
@@ -394,10 +391,27 @@ def total_cost(request):
 
     graph = MultiBarChart(
                 width=1280,
-                height=800
+                height=800,
+                extra='chart.stacked(true);'
             )
     graph.data = graph_data
 
+    return { 'graph' : graph,
+            'notes' : '',
+            'selectors' : {}
+            }
+
+@view_config(route_name='stats', match_param="graph=gcpcost", renderer='budget:templates/stats.pt')
+def gcp_cost(request):
+    log.debug(request.params)
+
+    results = DBSession.query(GcpLineItem)
+
+    graph = StackedAreaChart(
+                width=1280,
+                height=800,
+                extra='chart.stacked(true);'
+            )
     return { 'graph' : graph,
             'notes' : '',
             'selectors' : {}

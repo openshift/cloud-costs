@@ -35,7 +35,7 @@ from decimal import Decimal, getcontext
 from pyramid.response import Response
 from pyramid.view import view_config
 
-from ..util.nvd3js.charts.discretebar import DiscreteBarChart
+from budget.util.nvd3js import *
 from ..util.fileloader import load_json, load_yaml
 from ..util.addset import addset
 from ..models import *
