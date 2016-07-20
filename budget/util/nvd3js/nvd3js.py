@@ -30,5 +30,5 @@ function data() {
 
     def __html__(self):
         ''' used by tal:replace '''
-        return "<h1>UNIMPLEMENTED</h1>"
+        return "<h1>UNIMPLEMENTED: %s.__html__()</h1>" % self.__class__
 
