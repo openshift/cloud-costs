@@ -8,6 +8,7 @@ class Nvd3js (object):
 
         Nearly all class paramaters are pass-throughs to the
         javascript. Please refer to the nvd3 documentation on those.
+        See: https://nvd3-community.github.io/nvd3/examples/documentation.html
     '''
 
     # JavaScript template to be rendered
@@ -100,8 +101,14 @@ function data() {
 
 
 
+class BoxPlotChart(Nvd3js):
+    _chart_ = "boxPlotChart"
+
 class BulletChart(Nvd3js):
     _chart_ = "bulletChart"
+
+class CandlestickBarChart(Nvd3js):
+    _chart_ = "candlestickBarChart"
 
 class CumulativeLineChart(Nvd3js):
     _chart_ = "cumulativeLineChart"
@@ -116,9 +123,6 @@ class DiscreteBarChart(Nvd3js):
 class HistoricalBarChart(Nvd3js):
     _chart_ = "historicalBarChart"
 
-class IndentedTree(Nvd3js):
-    _chart_ = "indentedTree"
-
 class LineChart(Nvd3js):
     _chart_ = "lineChart"
 
@@ -128,11 +132,20 @@ class LinePlusBarChart(Nvd3js):
 class LineWithFocusChart(Nvd3js):
     _chart_ = "lineWithFocusChart"
 
+class MultiBarChart(Nvd3js):
+    _chart_ = "multiBarChart"
+
 class MultibarHorizontalChart(Nvd3js):
     _chart_ = "multibarHorizontalChart"
 
-class MultiBarChart(Nvd3js):
-    _chart_ = "multiBarChart"
+class MultiChart(Nvd3js):
+    _chart_ = "multiChart"
+
+class OhlcBarChart(Nvd3js):
+    _chart_ = "ohlcBarChart"
+
+class ParallelCoordinatesChart(Nvd3js):
+    _chart_ = "parallelCoordinatesChart"
 
 class PieChart(Nvd3js):
     _chart_ = "pieChart"
@@ -144,5 +157,11 @@ class PieChart(Nvd3js):
 class ScatterChart(Nvd3js):
     _chart_ = "scatterChart"
 
+class SparklinePlus(Nvd3js):
+    _chart_ = "sparklinePlus"
+
 class StackedAreaChart(Nvd3js):
     _chart_ = "stackedAreaChart"
+
+class SunburstChart(Nvd3js):
+    _chart_ = "sunburstChart"
