@@ -5,6 +5,9 @@ import logging
 class Nvd3js (object):
     ''' wrapper for emitting nvd3 javascript glue
         See http://nvd3.org for more info.
+
+        Nearly all class paramaters are pass-throughs to the
+        javascript. Please refer to the nvd3 documentation on those.
     '''
 
     # JavaScript template to be rendered
@@ -38,7 +41,16 @@ function data() {
 
     def __init__(self, **kwargs):
         ''' subclasses should override __init__() if they need to override _out_ to
-            include additional default values callers shouldn't need to worry about
+            include additional default values callers shouldn't need to worry
+            about.
+
+            There are two features of this class that implementors will care
+            about.
+
+            1. Class attributes are used to set all public class variables.
+            2. For any additional javascript that needs to be emitted, there is
+                the "extra" parameter, which can be set to any string of javascript
+                as needed.
         '''
         self.data = []
         self._out_ = []
