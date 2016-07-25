@@ -23,6 +23,7 @@
 			<p><a href="/stats/nodes">Node distribution</a></p>
 			<p><a href="/reservation/list">AWS Reserved Instances Report</a></p>
 			<p><a href="/cost_allocation/by_account">AWS Cost Allocation Report</a></p>
+			<p><a href="/stats/gcpcost">GCP Costs</a></p>
 	</div>
 
   </body>

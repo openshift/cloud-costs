@@ -17,6 +17,8 @@ class Nvd3js (object):
 nv.addGraph(function() {
   var chart = nv.models.%(chart)s()%(options)s;
 
+  chart.legend.vers('%(legend)s');
+
   %(extra)s
 
   d3.select("#chart svg")
@@ -59,15 +61,19 @@ function data() {
         for key, value in kwargs.items():
             setattr(self, key, value)
 
+        if not getattr(self, 'legend', None):
+            self.legend = 'furious' # default to new "furious" legend
+
         if not getattr(self, 'extra', None):
             self.extra = ""
 
     def __html__(self):
         ''' used by tal:replace '''
-        js = self._js_ % dict( chart = self._chart_,
-                                options = self.options(),
-                                data = self.data,
-                                extra = self.extra)
+        js = self._js_ % dict(chart=self._chart_,
+                            options=self.options(),
+                            data=self.data,
+                            extra=self.extra,
+                            legend=self.legend)
 
         self._log_.debug('Rendering chart: %s' % js)
         return js
@@ -76,7 +82,7 @@ function data() {
         ''' provides the chained calls to set optional attributes on the chart
             class
         '''
-        blacklist = [ 'data', '_out_', 'extra' ]
+        blacklist = [ 'data', '_out_', 'extra', 'legend' ]
         out = self._out_
 
         for k, v in self.__dict__.items():
@@ -162,6 +168,10 @@ class SparklinePlus(Nvd3js):
 
 class StackedAreaChart(Nvd3js):
     _chart_ = "stackedAreaChart"
+    def __init__(self, **kwargs):
+        super(StackedAreaChart, self).__init__(**kwargs)
+        self._out_ = [ '.x(function(d) { return d[0] })',
+                        '.y(function(d) { return d[1] })' ]
 
 class SunburstChart(Nvd3js):
     _chart_ = "sunburstChart"

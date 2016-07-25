@@ -5,17 +5,20 @@ from pyramid.response import Response
 from pyramid.view import view_config
 
 from sqlalchemy.exc import DBAPIError
-from sqlalchemy import not_, asc, distinct
+from sqlalchemy import not_, asc, distinct, func
 
 from ..models import *
 from ..util.addset import addset
 
+import locale
 import logging
 
 from budget.util.nvd3js import *
 
 log = logging.getLogger(__name__)
 last_year = datetime.now() - timedelta(days=365)
+last_month = datetime.now() - timedelta(days=30)
+locale.setlocale(locale.LC_ALL, "en_US")
 
 @view_config(route_name='stats_index', renderer='budget:templates/stats.pt')
 def stats_index(request):
@@ -48,8 +51,8 @@ def cost_by_account(request):
             graph_data.append({'label': item[1], 'value': item[2]})
 
     graph = PieChart(
-                width=400,
-                height=400,
+                width=800,
+                height=800,
                 labelType='percent',
                 labelThreshold=0.05,
                 legendPosition='right')
@@ -115,8 +118,8 @@ def gear_activity_distribution(request):
 
     log.debug(graph_data)
     graph = PieChart(
-                width=400,
-                height=400,
+                width=800,
+                height=800,
                 labelType='percent',
                 labelThreshold=0.02,
                 legendPosition='right')
@@ -165,8 +168,8 @@ def node_distribution(request):
                             'value' : int(stat.nodes_count) })
 
     graph = PieChart(
-                width=400,
-                height=400,
+                width=800,
+                height=800,
                 labelType='percent',
                 labelThreshold=0.03,
                 legendPosition='right')
@@ -401,17 +404,69 @@ def total_cost(request):
             'selectors' : {}
             }
 
+# %s - undocumented pass-through to system's strftime.
+#      need to multiply by 1000 to hit the right century.
+def epoch_date(d):
+    ''' return the unix epoch date for dates after Y2K '''
+    return int(d.strftime('%s'))*1000
+
 @view_config(route_name='stats', match_param="graph=gcpcost", renderer='budget:templates/stats.pt')
 def gcp_cost(request):
     log.debug(request.params)
 
-    results = DBSession.query(GcpLineItem)
+    # Numer of coords for all keys MUST be equal.
+    # Coord values MUST be numbers (no strings!)
+    #
+    # [
+    #    { 'key': label1, 'values': [[x1,y1],[x2,y2]] },
+    #    { 'key': label2, 'values': [[x1,y1],[x2,y2]] },
+    # ]
+    graph_data = {}
+    seen_dates = []
+    projects = DBSession.query(GcpLineItem.project_name.distinct()).all()
+    for p, in projects:
+        project = str(p)
 
-    graph = StackedAreaChart(
-                width=1280,
-                height=800,
-                extra='chart.stacked(true);'
-            )
+        if project not in graph_data.keys():
+            graph_data[project] = []
+
+        end_times = DBSession.query(
+                        GcpLineItem.end_time.distinct()
+                    ).filter(
+                        GcpLineItem.project_name == project,
+                        GcpLineItem.start_time >= last_year,
+                    ).all()
+
+        for end, in end_times:
+            if end not in seen_dates:
+                seen_dates.append(epoch_date(end))
+
+            results = DBSession.query(func.sum(GcpLineItem.cost_amount)).filter(
+                    GcpLineItem.project_name == project,
+                    GcpLineItem.end_time == end,
+                ).all()
+
+            for r, in results:
+                data = [epoch_date(end), r]
+                graph_data[project].append(data)
+
+    # remove spurious key.
+    del(graph_data['None'])
+
+    # ensure that the length of the coordinate value arrays are all the same.
+    for k,v in graph_data.items():
+        for d in seen_dates:
+            if d not in [x for x,y in v]:
+                graph_data[k].append([d,0])
+
+    graph = StackedAreaChart(width=800,
+                            height=600,
+                            extra="""
+    chart.xAxis.tickFormat(function(d) { return d3.time.format('%x')(new Date(d)) });
+    chart.yAxis.tickFormat(d3.format('$,.4f'));
+                                    """)
+    graph.data = [{'key':k,'values':sorted(v, key=lambda x: x[0])} for k,v in graph_data.items()]
+
     return { 'graph' : graph,
             'notes' : '',
             'selectors' : {}
