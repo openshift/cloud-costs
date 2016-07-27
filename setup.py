@@ -10,9 +10,11 @@ with open(os.path.join(here, 'CHANGES.txt')) as f:
 
 requires = [
     'boto',
+    'cov-core',
     'fa.jquery',
     'gcloud',
     'mysql-python',
+    'nose2',
     'paramiko',
     'pyramid',
     'pyramid_chameleon',
@@ -45,7 +47,7 @@ setup(name='budget',
       packages=find_packages(),
       include_package_data=True,
       zip_safe=False,
-      test_suite='budget',
+      test_suite='nose2.collector.collector',
       install_requires=requires,
       entry_points="""\
       [paste.app_factory]

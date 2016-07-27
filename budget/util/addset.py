@@ -7,3 +7,5 @@ def addset(diction, key, val):
         diction[key] += val
     else:
         diction[key] = val
+
+    return diction

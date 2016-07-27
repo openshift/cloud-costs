@@ -6,3 +6,4 @@ checksums.json
 data/
 creds/creds.yaml
 creds/*.json
+.coverage

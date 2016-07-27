@@ -16,7 +16,6 @@ def load_json(filename):
         fh = json.loads('{}')
     except ValueError:
         log.error('Unable to read %s' % filename)
-        sys.exit()
     return fh
 
 def save_json(filename, data):
