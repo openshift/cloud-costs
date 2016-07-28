@@ -1,5 +1,18 @@
 language: python
 python:
     - 2.7
+git:
+    depth: 3
+branches:
+    only:
+        - master
+addons:
+    apt:
+        packages:
+            - libclang-common-dev # needed for grpcio
+before_install:
+    - sudo apt-get update
+    - pip install --upgrade pip
+    - pip install grpcio # for some reason, this doesn't compile right when called by setup.py.
 install: python setup.py install
 script: nose2
