@@ -5,8 +5,8 @@ import budget.util.fileloader as f
 from StringIO import StringIO
 
 class TestFileLoaderYaml(unittest.TestCase):
-    testdir = 'budget/tests/util/'
-    data = testdir+'fileloader.yaml'
+    testdir = os.path.dirname(__file__)
+    data = testdir+'/fileloader.yaml'
 
     def runTest(self):
         test = f.load_yaml(self.data)
@@ -23,8 +23,8 @@ class TestFileLoaderYaml(unittest.TestCase):
         os.remove(self.data+'.new')
 
 class TestFileLoaderJson(unittest.TestCase):
-    testdir = 'budget/tests/util/'
-    data = testdir+'fileloader.json'
+    testdir = os.path.dirname(__file__)
+    data = testdir+'/fileloader.json'
 
     def runTest(self):
         test = f.load_json(self.data)
