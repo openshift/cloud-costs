@@ -1,6 +1,7 @@
 %YAML 1.2
 ---
 language: python
-python: 2.7
-install: python setup.py develop
+python:
+    - 2.7
+install: python setup.py install
 script: nose2
