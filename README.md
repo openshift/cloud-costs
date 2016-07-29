@@ -1,6 +1,8 @@
 cloud-costs README
 ==================
 
+![Test Status](https://travis-ci.org/blentz/cloud-costs.svg?branch=master "Test Status")
+
 This is a project using the Pyramid framework (http://www.pylonsproject.org/).
 
 The purpose is to develop a set of utilities and tools that provides meaningful
