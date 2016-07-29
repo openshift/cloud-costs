@@ -14,5 +14,6 @@ before_install:
     - sudo apt-get update
     - pip install --upgrade pip
     - pip install grpcio # for some reason, this doesn't compile right when called by setup.py.
+    - sudo locale-gen en_US en_US.utf8 # ensure our expected locales exist
 install: python setup.py install
 script: nose2
