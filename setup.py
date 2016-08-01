@@ -7,8 +7,6 @@ here = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(here, 'README.md')) as f:
     README = f.read()
 
-CHANGES = subprocess.call(['git','log','--oneline','HEAD~10..HEAD'])
-
 requires = [
     'boto',
     'cov-core',
@@ -35,7 +33,7 @@ requires = [
 setup(name='budget',
       version='0.1',
       description='budget',
-      long_description=README + '\n\n' + CHANGES,
+      long_description=README,
       classifiers=[
         "Programming Language :: Python",
         "Framework :: Pyramid",
