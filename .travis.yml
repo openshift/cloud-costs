@@ -19,5 +19,5 @@ before_install:
     - sudo locale-gen en_US en_US.utf8 # ensure our expected locales exist
 install: python setup.py install
 before_script:
-    - chmod o-rwx ~/.python-eggs # silence a warning from virtualenv
+    - if [ -d ~/.python-eggs ]; then chmod o-rwx ~/.python-eggs; fi # silence a warning from virtualenv
 script: nose2
