@@ -1,17 +1,8 @@
 <!DOCTYPE html>
-<html lang="${request.locale_name}">
-  <head>
-    <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="pyramid web application">
-    <meta name="author" content="Brett Lentz">
-    <link rel="shortcut icon" href="${request.static_url('budget:static/pyramid-16x16.png')}">
+<html metal:use-macro="load: base.pt">
 
-    <title>Statistics and Reporting</title>
-
+<div metal:fill-slot="content">
     <!-- Our Stuff -->
-    <link href="${request.static_url('budget:static/theme.css')}" rel="stylesheet">
     <link href="${request.static_url('budget:static/reservation.css')}" rel="stylesheet">
 
     <!-- JQuery & JqueryUI -->
@@ -35,12 +26,9 @@
     <link href="${request.static_url('budget:static/nv.d3.css')}" rel="stylesheet">
     <script src="${request.static_url('budget:static/d3.js')}" charset="utf-8"></script>
     <script src="${request.static_url('budget:static/nv.d3.js')}" charset="utf-8"></script>
-  </head>
-
-  <body>
 
     <div id="csv" class="link">
-        <a href="/reservation/csv">CSV</a>
+        <a href="/reservation/csv">Export to CSV</a>
     </div>
     <div class="results_container">
       <table class="datatable">
@@ -75,5 +63,5 @@
     </div>
     <div id="dialog"></div>
     <script src="${request.static_url('budget:static/reservation.js')}" charset="utf-8"></script>
-  </body>
+</div>
 </html>

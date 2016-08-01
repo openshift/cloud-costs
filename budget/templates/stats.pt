@@ -1,32 +1,13 @@
 <!DOCTYPE html>
-<html lang="${request.locale_name}">
-  <head>
-    <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="pyramid web application">
-    <meta name="author" content="Brett Lentz">
-    <link rel="shortcut icon" href="${request.static_url('budget:static/pyramid-16x16.png')}">
+<html metal:use-macro="load: base.pt">
 
-    <title>Statistics and Reporting</title>
+<div metal:fill-slot="content">
+		<link href="${request.static_url('budget:static/nv.d3.css')}" rel="stylesheet">
+		<link href="${request.static_url('budget:static/stats.css')}" rel="stylesheet">
 
-    <link href="${request.static_url('budget:static/nv.d3.css')}" rel="stylesheet">
-    <link href="${request.static_url('budget:static/theme.css')}" rel="stylesheet">
-    <link href="${request.static_url('budget:static/stats.css')}" rel="stylesheet">
+		<script src="${request.static_url('budget:static/d3.js')}" charset="utf-8"></script>
+		<script src="${request.static_url('budget:static/nv.d3.js')}" charset="utf-8"></script>
 
-    <script src="${request.static_url('budget:static/d3.js')}" charset="utf-8"></script>
-    <script src="${request.static_url('budget:static/nv.d3.js')}" charset="utf-8"></script>
-  </head>
-
-  <body>
-		<div class='header'>
-				| <a class='header-link' href='/stats/account'>Cost By Account</a> |
-				<a class='header-link' href='/stats/activity'>Gear Activity</a> |
-				<a class='header-link' href='/stats/nodes'>Node Distribution</a> |
-				<a class='header-link' href='/stats/v2gearcost'>Gear Cost</a> |
-				<a class='header-link' href='/stats/totalcost'>Total Cost</a> |
-				<a class='header-link' href="/stats/gcpcost">GCP Costs</a> |
-		</div>
 		<div class='selectors' tal:condition='selectors'>
 				<form method='post' class='selector-form'>
 						<select tal:repeat='selector selectors' tal:attributes='name selector'>
@@ -36,7 +17,7 @@
 										${opt}
 								</option>
 						</select>
-					<input type='submit' />
+						<input type='submit' />
 				</form>
 		</div>
 		<br />
@@ -47,5 +28,5 @@
 				<p tal:content=notes></p>
 		</div>
 		<script tal:replace='graph' />
-  </body>
+</div>
 </html>

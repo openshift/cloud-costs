@@ -1,30 +1,7 @@
 <!DOCTYPE html>
-<html lang="${request.locale_name}">
-  <head>
-    <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="pyramid web application">
-    <meta name="author" content="Brett Lentz">
-    <link rel="shortcut icon" href="${request.static_url('budget:static/pyramid-16x16.png')}">
+<html metal:use-macro="load: base.pt">
 
-    <title>Statistics and Reporting</title>
+<div metal:fill-slot="content">
+</div>
 
-    <!-- Custom styles for this scaffold -->
-    <link href="${request.static_url('budget:static/theme.css')}" rel="stylesheet">
-  </head>
-
-  <body>
-
-	<div>
-			<p>TODO</p>
-			<p><a href="/stats/account">Cost by Account</a></p>
-			<p><a href="/stats/activity">Gear Activity Distribution</a></p>
-			<p><a href="/stats/nodes">Node distribution</a></p>
-			<p><a href="/reservation/list">AWS Reserved Instances Report</a></p>
-			<p><a href="/cost_allocation/by_account">AWS Cost Allocation Report</a></p>
-			<p><a href="/stats/gcpcost">GCP Costs</a></p>
-	</div>
-
-  </body>
 </html>
