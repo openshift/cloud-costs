@@ -275,9 +275,6 @@ class TestCalculateCosts(unittest.TestCase):
         from budget.models import Base, AwsPrice, AwsProduct
         from sqlalchemy import create_engine
         engine = create_engine('sqlite://')
-        ##FIxME
-        #if DBSession:
-        #    DBSession.remove()
         DBSession.configure(bind=engine)
         Base.metadata.drop_all(engine)
         Base.metadata.create_all(engine)
