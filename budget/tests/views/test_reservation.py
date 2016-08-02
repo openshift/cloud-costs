@@ -4,6 +4,7 @@ import unittest
 import transaction
 
 from datetime import datetime,timedelta
+from decimal import Decimal
 from moto import mock_ec2
 from pyramid import testing
 
@@ -174,6 +175,9 @@ class TestGetInstances(unittest.TestCase):
         from budget.models import Base, AwsInstanceInventory
         from sqlalchemy import create_engine
         engine = create_engine('sqlite://')
+        #FIxME
+        if DBSession:
+            DBSession.remove()
         DBSession.configure(bind=engine)
         Base.metadata.drop_all(engine)
         Base.metadata.create_all(engine)
@@ -246,39 +250,81 @@ class TestCalculateReservationStats(unittest.TestCase):
         self.assertEqual(result.ri_totals[tup]['reserved'], 5)
         self.assertEqual(result.ri_totals[tup]['running'], 1)
 
-# XXX: need to find a fix for get_price()
-#class TestCalculateCosts(unittest.TestCase):
-#    def setUp(self):
-#        self.config = testing.setUp()
-#
-#        from budget.views.reservation import DataHolder
-#        tup = ('m4.xlarge', 'us-east-1a')
-#        dummy_inst = DataHolder(
-#                        instance_type = tup[0],
-#                        availability_zone = tup[1],
-#                    )
-#        dummy_rsrv = DataHolder(
-#                        instance_type = tup[0],
-#                        availability_zone = tup[1],
-#                        instance_count = 5
-#                    )
-#        self.dh = DataHolder(
-#                            instance_type=tup[0],
-#                            availability_zone=tup[1],
-#                            instances={ '1234567890' : [ dummy_inst ] },
-#                            reservations={ '1234567890' : [ dummy_rsrv ] },
-#                            account='1234567890'
-#                        )
-#
-#    def tearDown(self):
-#        testing.tearDown()
-#
-#    def runTest(self):
-#        from budget.views.reservation import (calculate_reservation_stats,
-#                                             calculate_costs)
-#        dh = calculate_reservation_stats(self.dh)
-#        print dh
-#        result, c = calculate_costs(dh)
-#        self.assertNotEqual(result.ri_costs[tup]['savings'], 0)
-#        self.assertNotEqual(result.ri_costs[tup]['up-front'], 0)
-#
+class TestCalculateCosts(unittest.TestCase):
+    def setUp(self):
+        self.config = testing.setUp()
+
+        from budget.views.reservation import DataHolder
+        self.tup = ('m4.xlarge', 'us-east-1a')
+        dummy_inst = DataHolder(
+                        instance_type = self.tup[0],
+                        availability_zone = self.tup[1],
+                    )
+        dummy_rsrv = DataHolder(
+                        instance_type = self.tup[0],
+                        availability_zone = self.tup[1],
+                        instance_count = 5
+                    )
+        self.dh = DataHolder(
+                            instance_type=self.tup[0],
+                            availability_zone=self.tup[1],
+                            instances={ '1234567890' : [ dummy_inst ] },
+                            reservations={ '1234567890' : [ dummy_rsrv ] },
+                            account='1234567890'
+                        )
+        from budget.models import Base, AwsPrice, AwsProduct
+        from sqlalchemy import create_engine
+        engine = create_engine('sqlite://')
+        ##FIxME
+        #if DBSession:
+        #    DBSession.remove()
+        DBSession.configure(bind=engine)
+        Base.metadata.drop_all(engine)
+        Base.metadata.create_all(engine)
+        with transaction.manager:
+            data = AwsPrice(
+                    sku = 'test',
+                    offer_term_code = 'test1',
+                    price_dimensions = '{"test1.test1.test1": {"pricePerUnit": {"USD": "1"}, "appliesTo": [], "rateCode": "test.test.2TG2D8R56U", "unit": "Quantity", "description": "Upfront Fee"}, "test.test.test": {"description": "Linux/UNIX (Amazon VPC), m4.xlarge instance-hours used this month", "pricePerUnit": {"USD": "0.1234000000"}, "rateCode": "test.test.test", "endRange": "Inf", "beginRange": "0", "appliesTo": [], "unit": "Hrs"}}',
+                    term_attributes = '{"LeaseContractLength": "1yr", "PurchaseOption": "Partial Upfront"}',
+                    json = 'test1.test1'
+            )
+            DBSession.add(data)
+            data = AwsPrice(
+                    sku = 'test',
+                    offer_term_code = 'test2',
+                    price_dimensions = '{"test.test2.test2": {"description": "$0.79 per On Demand Linux m4.xlarge Instance Hour", "pricePerUnit": {"USD": "0.4567800000"}, "rateCode": "test.test2.test2", "endRange": "Inf", "beginRange": "0", "appliesTo": [], "unit": "Hrs"}}',
+                    term_attributes = '{}',
+                    json = 'test.test2'
+            )
+            DBSession.add(data)
+            data = AwsProduct(
+                    sku = 'test',
+                    location = 'US East (N. Virginia)',
+                    instance_type = 'm4.xlarge',
+                    current_generation = True,
+                    tenancy = 'Shared',
+                    usage_type = 'test:test',
+                    operation = 'test:test',
+                    operating_system = 'Linux',
+                    json = '{"sku": "test", "productFamily": "Compute Instance", "attributes": {"enhancedNetworkingSupported": "Yes", "networkPerformance": "High", "preInstalledSw": "NA", "instanceFamily": "Storage optimized", "vcpu": "9000", "locationType": "AWS Region", "usagetype": "test:test"", "storage": "100 x 100 MFM", "currentGeneration": "Yes", "operatingSystem": "Linux", "processorArchitecture": "8-bit", "tenancy": "Shared", "licenseModel": "No License required", "servicecode": "test", "memory": "1 ZiB", "processorFeatures": "Shiny; Hot; Metal", "clockSpeed": "0.1 MHz", "operation": "testStuff", "physicalProcessor": "IBM 8088", "instanceType": "m4.xlarge", "location": "US East (N. Virginia)"}}'
+            )
+            DBSession.add(data)
+
+    def tearDown(self):
+        DBSession.remove()
+        testing.tearDown()
+
+    def runTest(self):
+        from budget.views.reservation import (calculate_reservation_stats,
+                                             calculate_costs)
+        request = testing.DummyRequest()
+        request.context = testing.DummyResource()
+        request.registry.settings['cache.dir'] = os.path.dirname(__file__) + \
+                '/../../../data'
+
+        dh = calculate_reservation_stats(self.dh)
+        result, c = calculate_costs(request, dh)
+        self.assertEqual(result.ri_costs[self.tup]['savings'], Decimal(-964))
+        self.assertEqual(result.ri_costs[self.tup]['up-front'], 0)
+

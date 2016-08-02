@@ -319,7 +319,7 @@ def calculate_reservation_stats(data_holder):
     data_holder.put(ri_delta=diff, ri_totals=totals)
     return data_holder
 
-def calculate_costs(data_holder, cache={}, cache_dir='%(here)/cache'):
+def calculate_costs(request, data_holder, cache={}):
     ''' calculate the cost differences between On-Demand and Reserved Instance
         pricing.
 
@@ -342,8 +342,7 @@ def calculate_costs(data_holder, cache={}, cache_dir='%(here)/cache'):
                         'region' : az[:-1],
                         'pricing' : 'Reserved',
                         'lease_contract_length' : '1yr',
-                        'purchase_option' : 'Partial Upfront',
-                        'cache_dir' : cache_dir}
+                        'purchase_option' : 'Partial Upfront' }
         od_params = (size, az[:-1], 'On-Demand')
         r_params = (size, az[:-1], 'Reserved')
 
@@ -351,7 +350,7 @@ def calculate_costs(data_holder, cache={}, cache_dir='%(here)/cache'):
             if r_params in cache.keys():
                 ri = cache[r_params]
             else:
-                ri = get_price(**r_kwargs)
+                ri = get_price(request, **r_kwargs)
                 cache[r_params] = ri
             cost[(size,az)]['up-front'] = ri['Quantity'] * -delta
         else:
@@ -362,17 +361,15 @@ def calculate_costs(data_holder, cache={}, cache_dir='%(here)/cache'):
             if od_params in cache.keys():
                 od_price = cache[od_params]
             else:
-                od_price = get_price(instance_type=size, region=az[:-1],
-                        cache_dir=cache_dir)
+                od_price = get_price(request, instance_type=size, region=az[:-1])
                 cache[od_params] = od_price
 
             if r_params in cache.keys():
                 ri_price = cache[r_params]
             else:
-                ri_price = get_price(**r_kwargs)
+                ri_price = get_price(request, **r_kwargs)
                 cache[r_params] = ri_price
 
-            print od_price
             monthly_on_demand = od_price['Hrs'] * 24 * 30
             monthly_ri_amortized = (ri_price['Hrs'] * 24 * 30) + \
                                     (ri_price['Quantity'] / 12)
@@ -384,7 +381,7 @@ def calculate_costs(data_holder, cache={}, cache_dir='%(here)/cache'):
     data_holder.put(ri_costs=cost)
     return (data_holder, cache)
 
-def get_price(instance_type='t1.micro', region='us-east-1', tenancy='Shared',
+def get_price(request, instance_type='t1.micro', region='us-east-1', tenancy='Shared',
         pricing='OnDemand', **kwargs):
     ''' Digs through a massive nest of json data to extract the on demand
         pricing for AWS instances.
@@ -407,12 +404,7 @@ def get_price(instance_type='t1.micro', region='us-east-1', tenancy='Shared',
               value - Decimal
     '''
 
-    if 'cache_dir' in kwargs.keys():
-        region_name = region_lookup(region, kwargs['cache_dir'])
-    else:
-        region_name = region_lookup(region)
-
-    print 'xxx: %s' % region_name
+    region_name = region_lookup(request, region)
     products = DBSession.query(
                     AwsPrice.price_dimensions,
                     AwsPrice.term_attributes
@@ -444,6 +436,7 @@ def get_price(instance_type='t1.micro', region='us-east-1', tenancy='Shared',
 
         if costs != {}:
             return costs
+
     return costs
 
 def _find_cost(regex, price_dimensions):
@@ -464,13 +457,14 @@ def _find_cost(regex, price_dimensions):
         return costs
     return {}
 
-def region_lookup(region='us-east-1', cache_dir='%(here)s/cache'):
+def region_lookup(request, region='us-east-1'):
     ''' AWS doesn't provide a mapping between the "location" name they use in
         the pricing files and the "region" name used everywhere else in the API.
 
         This method interprets a JSON mapping file based on this table:
         https://docs.aws.amazon.com/general/latest/gr/rande.html#ec2_region
     '''
+    cache_dir = request.registry.settings['cache.dir']
     ec2_region_map = load_json(cache_dir+"/aws_pricing/ec2_region_map.json")
 
     for x in ec2_region_map:
@@ -544,7 +538,6 @@ def compile_data(request):
         objects that can be manipulated into the desired presentation layout
     '''
     creds_file = request.registry.settings['creds.dir'] + "/creds.yaml"
-    cache_dir = request.registry.settings['cache.dir']
     accounts = sorted(load_yaml(creds_file).keys())
 
     data = {}
@@ -590,7 +583,7 @@ def compile_data(request):
     query_cache = {}
     for tup, dh in data.items():
         dh = calculate_reservation_stats(dh)
-        dh, query_cache = calculate_costs(dh, query_cache, cache_dir)
+        dh, query_cache = calculate_costs(request, dh, query_cache, cache_dir)
         dh = get_expirations(dh)
         data[tup] = dh
 
