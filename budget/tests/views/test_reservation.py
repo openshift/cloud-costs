@@ -325,3 +325,58 @@ class TestCalculateCosts(unittest.TestCase):
         self.assertEqual(result.ri_costs[self.tup]['savings'], Decimal(-964))
         self.assertEqual(result.ri_costs[self.tup]['up-front'], 0)
 
+class TestGetPrice(unittest.TestCase):
+    def setUp(self):
+        self.config = testing.setUp()
+        from budget.models import Base, AwsPrice, AwsProduct
+        from sqlalchemy import create_engine
+        engine = create_engine('sqlite://')
+        DBSession.configure(bind=engine)
+        Base.metadata.drop_all(engine)
+        Base.metadata.create_all(engine)
+        with transaction.manager:
+            data = AwsPrice(
+                    sku = 'test',
+                    offer_term_code = 'test1',
+                    price_dimensions = '{"test1.test1.test1": {"pricePerUnit": {"USD": "1"}, "appliesTo": [], "rateCode": "test.test.2TG2D8R56U", "unit": "Quantity", "description": "Upfront Fee"}, "test.test.test": {"description": "Linux/UNIX (Amazon VPC), m4.xlarge instance-hours used this month", "pricePerUnit": {"USD": "0.1234000000"}, "rateCode": "test.test.test", "endRange": "Inf", "beginRange": "0", "appliesTo": [], "unit": "Hrs"}}',
+                    term_attributes = '{"LeaseContractLength": "1yr", "PurchaseOption": "Partial Upfront"}',
+                    json = 'test1.test1'
+            )
+            DBSession.add(data)
+            data = AwsPrice(
+                    sku = 'test',
+                    offer_term_code = 'test2',
+                    price_dimensions = '{"test.test2.test2": {"description": "$0.79 per On Demand Linux m4.xlarge Instance Hour", "pricePerUnit": {"USD": "0.4567800000"}, "rateCode": "test.test2.test2", "endRange": "Inf", "beginRange": "0", "appliesTo": [], "unit": "Hrs"}}',
+                    term_attributes = '{}',
+                    json = 'test.test2'
+            )
+            DBSession.add(data)
+            data = AwsProduct(
+                    sku = 'test',
+                    location = 'US East (N. Virginia)',
+                    instance_type = 'm4.xlarge',
+                    current_generation = True,
+                    tenancy = 'Shared',
+                    usage_type = 'test:test',
+                    operation = 'test:test',
+                    operating_system = 'Linux',
+                    json = '{"sku": "test", "productFamily": "Compute Instance", "attributes": {"enhancedNetworkingSupported": "Yes", "networkPerformance": "High", "preInstalledSw": "NA", "instanceFamily": "Storage optimized", "vcpu": "9000", "locationType": "AWS Region", "usagetype": "test:test"", "storage": "100 x 100 MFM", "currentGeneration": "Yes", "operatingSystem": "Linux", "processorArchitecture": "8-bit", "tenancy": "Shared", "licenseModel": "No License required", "servicecode": "test", "memory": "1 ZiB", "processorFeatures": "Shiny; Hot; Metal", "clockSpeed": "0.1 MHz", "operation": "testStuff", "physicalProcessor": "IBM 8088", "instanceType": "m4.xlarge", "location": "US East (N. Virginia)"}}'
+            )
+            DBSession.add(data)
+
+    def tearDown(self):
+        DBSession.remove()
+        testing.tearDown()
+
+    def runTest(self):
+        from budget.views.reservation import get_price
+        request = testing.DummyRequest()
+        request.context = testing.DummyResource()
+        request.registry.settings['cache.dir'] = os.path.dirname(__file__) + \
+                '/../../../data'
+
+        kwargs = {'instance_type' : 'm4.xlarge',
+                    'region' : 'us-east-1'}
+        result = get_price(request, **kwargs)
+        self.assertEqual(result.keys(), ['Hrs'])
+        self.assertEqual(result['Hrs'], Decimal('0.45678'))

@@ -583,7 +583,7 @@ def compile_data(request):
     query_cache = {}
     for tup, dh in data.items():
         dh = calculate_reservation_stats(dh)
-        dh, query_cache = calculate_costs(request, dh, query_cache, cache_dir)
+        dh, query_cache = calculate_costs(request, dh, query_cache)
         dh = get_expirations(dh)
         data[tup] = dh
 
