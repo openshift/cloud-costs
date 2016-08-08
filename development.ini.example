@@ -15,8 +15,7 @@ pyramid.includes =
     pyramid_debugtoolbar
     pyramid_tm
 
-#sqlalchemy.url = mysql://root@localhost/pybudget
-sqlalchemy.url = mysql://pybudget:pyBudg3t@localhost/pybudget
+sqlalchemy.url = mysql://root@localhost/pybudget
 
 # where we store S3 data
 cache.dir = %(here)s/data

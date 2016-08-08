@@ -7,4 +7,5 @@ data/
 creds/creds.yaml
 creds/*.json
 production.ini
+development.ini
 .coverage
