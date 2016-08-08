@@ -6,4 +6,5 @@ checksums.json
 data/
 creds/creds.yaml
 creds/*.json
+production.ini
 .coverage
