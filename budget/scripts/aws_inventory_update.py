@@ -30,7 +30,7 @@ from ..models import (
 
 from ..util.fileloader import load_yaml
 
-MAX_PROCESSES = 20
+MAX_PROCESSES = 10
 
 def update_instance_inventory(ec2conn, account):
     instances = []
@@ -144,39 +144,41 @@ def main(argv=sys.argv):
     objects = []
     pids = []
 
-    for account in get_accounts():
-        access_key, secret_key = get_creds(account)
-        regions = boto.ec2.regions()
+    with DBSession.no_autoflush:
+        for account in get_accounts():
+            access_key, secret_key = get_creds(account)
+            regions = boto.ec2.regions()
 
-        for region in regions:
-            # skip restricted access regions
-            if region.name in [ 'us-gov-west-1', 'cn-north-1' ]:
-                continue
+            for region in regions:
+                # skip restricted access regions
+                if region.name in [ 'us-gov-west-1', 'cn-north-1' ]:
+                    continue
 
-            log.debug('checking %s: %s' % (account,region.name))
-            ec2 = boto.ec2.connect_to_region(region.name,
-                    aws_access_key_id=access_key,
-                    aws_secret_access_key=secret_key)
+                log.debug('checking %s: %s' % (account,region.name))
+                ec2 = boto.ec2.connect_to_region(region.name,
+                        aws_access_key_id=access_key,
+                        aws_secret_access_key=secret_key)
 
-            r1 = pool.apply_async(update_instance_inventory, (ec2, account),
-                    callback=objects.extend)
-            r2 = pool.apply_async(update_reservation_inventory, (ec2, account),
-                    callback=objects.extend)
+                r1 = pool.apply_async(update_instance_inventory, (ec2, account),
+                        callback=objects.extend)
+                r2 = pool.apply_async(update_reservation_inventory, (ec2, account),
+                        callback=objects.extend)
 
-            pids.append(r1)
-            pids.append(r2)
+                pids.append(r1)
+                pids.append(r2)
 
-    # get the output of all our processes
-    for pid in pids:
-        pid.get()
+            # get the output of all our processes
+            for pid in pids:
+                pid.get()
+            del(pids[:])
 
-    # ensure the sqlalchemy objects aren't garbage-collected before we commit them.
-    # see:
-    # http://docs.sqlalchemy.org/en/latest/orm/session_state_management.html#session-referencing-behavior
-    merged = []
-    for obj in objects:
-        merged.append(DBSession.merge(obj))
-    transaction.commit()
+            # ensure the sqlalchemy objects aren't garbage-collected before we commit them.
+            # see:
+            # http://docs.sqlalchemy.org/en/latest/orm/session_state_management.html#session-referencing-behavior
+            merged = []
+            for obj in objects:
+                merged.append(DBSession.merge(obj))
+            transaction.commit()
 
     pool.close()
     pool.join()
