@@ -1,4 +1,3 @@
-import boto
 import os
 import unittest
 import transaction
@@ -159,6 +158,7 @@ class TestGetReservationOfferings(unittest.TestCase):
     @mock_ec2
     def runTest(self):
         from budget.views.reservation import get_reservation_offerings
+        import boto
         ec2conn = boto.ec2.connect_to_region('us-east-1')
         try:
             result = get_reservation_offerings(ec2conn,
@@ -338,7 +338,7 @@ class TestGetPrice(unittest.TestCase):
             data = AwsPrice(
                     sku = 'test',
                     offer_term_code = 'test1',
-                    price_dimensions = '{"test1.test1.test1": {"pricePerUnit": {"USD": "1"}, "appliesTo": [], "rateCode": "test.test.2TG2D8R56U", "unit": "Quantity", "description": "Upfront Fee"}, "test.test.test": {"description": "Linux/UNIX (Amazon VPC), m4.xlarge instance-hours used this month", "pricePerUnit": {"USD": "0.1234000000"}, "rateCode": "test.test.test", "endRange": "Inf", "beginRange": "0", "appliesTo": [], "unit": "Hrs"}}',
+                    price_dimensions = '{"test1.test1.test1": {"pricePerUnit": {"USD": "1"}, "appliesTo": [], "rateCode": "test.test.test", "unit": "Quantity", "description": "Upfront Fee"}, "test.test.test": {"description": "Linux/UNIX (Amazon VPC), m4.xlarge instance-hours used this month", "pricePerUnit": {"USD": "0.1234000000"}, "rateCode": "test.test.test", "endRange": "Inf", "beginRange": "0", "appliesTo": [], "unit": "Hrs"}}',
                     term_attributes = '{"LeaseContractLength": "1yr", "PurchaseOption": "Partial Upfront"}',
                     json = 'test1.test1'
             )
@@ -380,3 +380,38 @@ class TestGetPrice(unittest.TestCase):
         result = get_price(request, **kwargs)
         self.assertEqual(result.keys(), ['Hrs'])
         self.assertEqual(result['Hrs'], Decimal('0.45678'))
+
+class TestFindCost(unittest.TestCase):
+    def setUp(self):
+        self.config = testing.setUp()
+
+    def tearDown(self):
+        testing.tearDown()
+
+    def runTest(self):
+        from budget.views.reservation import _find_cost
+        import json
+        import re
+        price_dimensions = json.loads('{ "test.test1.test1": { "pricePerUnit": { "USD": "1234" }, "description": "Upfront Fee", "appliesTo": [], "unit": "Quantity", "rateCode": "test.test.test" }, "test.test2.test2": { "description": "USD 0.0 per Linux/UNIX (Amazon VPC), m42.superhuge instance-hour (or partial hour)", "appliesTo": [], "rateCode": "test.test.test", "unit": "Hrs", "beginRange": "0", "pricePerUnit": { "USD": "0.1234000000" }, "endRange": "Inf" } }')
+        search = re.compile(r'Linux/UNIX')
+
+        result = _find_cost(search, price_dimensions)
+        self.assertEqual(result.keys(), ['Hrs','Quantity'])
+        self.assertEqual(result['Hrs'], Decimal('0.1234'))
+
+class TestRegionLookup(unittest.TestCase):
+    def setUp(self):
+        self.config = testing.setUp()
+
+    def tearDown(self):
+        testing.tearDown()
+
+    def runTest(self):
+        from budget.views.reservation import region_lookup
+        request = testing.DummyRequest()
+        request.context = testing.DummyResource()
+        request.registry.settings['cache.dir'] = os.path.dirname(__file__) + \
+                '/../../../data'
+
+        result = region_lookup(request, 'ap-southeast-2')
+        self.assertEqual(result, 'Asia Pacific (Sydney)')
