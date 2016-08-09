@@ -414,13 +414,6 @@ def epoch_date(d):
 def gcp_cost(request):
     log.debug(request.params)
 
-    # Numer of coords for all keys MUST be equal.
-    # Coord values MUST be numbers (no strings!)
-    #
-    # [
-    #    { 'key': label1, 'values': [[x1,y1],[x2,y2]] },
-    #    { 'key': label2, 'values': [[x1,y1],[x2,y2]] },
-    # ]
     graph_data = {}
     seen_dates = []
     projects = DBSession.query(GcpLineItem.project_name.distinct()).all()

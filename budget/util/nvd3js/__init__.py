@@ -121,6 +121,16 @@ class CumulativeLineChart(Nvd3js):
 
 class DiscreteBarChart(Nvd3js):
     _chart_ = "discreteBarChart"
+    # Graph Data:
+    #
+    # [
+    #     { 'key' : 'foo',
+    #       'values' : [
+    #             {'label' : 'foo', 'value' : 10 },
+    #             {'label' : 'bar', 'value' : 20 }
+    #         ]
+    #     },
+    # ]
     def __init__(self, **kwargs):
         super(DiscreteBarChart, self).__init__(**kwargs)
         self._out_ = [ '.x(function(d) { return d.label })',
@@ -155,6 +165,12 @@ class ParallelCoordinatesChart(Nvd3js):
 
 class PieChart(Nvd3js):
     _chart_ = "pieChart"
+    # Graph Data:
+    #
+    # [
+    # {'label': 'foo', 'value': 10 },
+    # {'label': 'bar', 'value': 20 }
+    # ]
     def __init__(self, **kwargs):
         super(PieChart, self).__init__(**kwargs)
         self._out_ = [ '.x(function(d) { return d.label })',
@@ -168,6 +184,17 @@ class SparklinePlus(Nvd3js):
 
 class StackedAreaChart(Nvd3js):
     _chart_ = "stackedAreaChart"
+    # Graph Data:
+    #
+    # Each dict of values must be the same length.
+    #
+    # Coord values must be numeric. Use nAxis.tickFormat() to transform
+    # coordinate values, as needed.
+    #
+    # [
+    #    { 'key': label1, 'values': [[x1,y1],[x2,y2]] },
+    #    { 'key': label2, 'values': [[x1,y1],[x2,y2]] },
+    # ]
     def __init__(self, **kwargs):
         super(StackedAreaChart, self).__init__(**kwargs)
         self._out_ = [ '.x(function(d) { return d[0] })',
