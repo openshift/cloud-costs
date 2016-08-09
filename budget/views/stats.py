@@ -452,9 +452,7 @@ def gcp_cost(request):
             if d not in [x for x,y in v]:
                 graph_data[k].append([d,0])
 
-    graph = StackedAreaChart(width=800,
-                            height=600,
-                            extra="""
+    graph = StackedAreaChart(extra="""
     chart.xAxis.tickFormat(function(d) { return d3.time.format('%x')(new Date(d)) });
     chart.yAxis.tickFormat(d3.format('$,.4f'));
                                     """)
