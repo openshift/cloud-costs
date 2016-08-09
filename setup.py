@@ -11,7 +11,7 @@ requires = [
     'boto',
     'cov-core',
     'fa.jquery',
-    'gcloud',
+    'gcloud==0.17',
     'moto',
     'mysql-python',
     'nose2',
