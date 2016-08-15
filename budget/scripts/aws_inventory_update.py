@@ -8,11 +8,12 @@ import transaction
 
 from datetime import datetime
 from dateutil import parser as date_parser
-from multiprocessing import Pool, Queue
+from multiprocessing import Pool, Queue, cpu_count
 
 from sqlalchemy import engine_from_config
 from sqlalchemy.sql import functions
 from sqlalchemy.sql.expression import ClauseElement
+from sqlalchemy.exc import IntegrityError
 
 from pyramid.paster import (
     get_appsettings,
@@ -30,7 +31,7 @@ from ..models import (
 
 from ..util.fileloader import load_yaml
 
-MAX_PROCESSES = 10
+DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 def update_instance_inventory(ec2conn, account):
     instances = []
@@ -55,17 +56,16 @@ def update_instance_inventory(ec2conn, account):
         else:
             env = 'No Environment'
 
-        obj = insert_or_update(DBSession, AwsInstanceInventory,
-                    defaults = { 'check_date' : now },
-                    instance_id = inst.id,
-                    name = name,
-                    environment = env,
-                    instance_type = inst.instance_type,
-                    availability_zone = inst.placement,
-                    account = get_account_number(account),
-                    status = inst.state,
-                    launch_date = date_parser.parse(inst.launch_time).strftime("%Y-%m-%d %H:%M:%S"),
-                )
+        obj = (AwsInstanceInventory, {'instance_id':inst.id}, {
+                    'check_date' : datetime.now().strftime(DATE_FORMAT),
+                    'name' : name,
+                    'environment' : env,
+                    'instance_type' : inst.instance_type,
+                    'availability_zone' : inst.placement,
+                    'account' : get_account_number(account),
+                    'status' : inst.state,
+                    'launch_date' : date_parser.parse(inst.launch_time).strftime(DATE_FORMAT),
+                })
         objects.append(obj)
     return objects
 
@@ -79,16 +79,14 @@ def update_reservation_inventory(ec2conn, account):
 
     objects = []
     for rsrv in reservations:
-        log.debug(rsrv.instance_count)
-        obj = insert_or_update(DBSession, AwsReservationInventory,
-                    reservation_id = rsrv.id,
-                    instance_type = rsrv.instance_type,
-                    availability_zone = rsrv.availability_zone,
-                    account = get_account_number(account),
-                    purchase_date = date_parser.parse(rsrv.start).strftime("%Y-%m-%d %H:%M:%S"),
-                    expiration_date = date_parser.parse(rsrv.end).strftime("%Y-%m-%d %H:%M:%S"),
-                    instance_count = rsrv.instance_count
-                )
+        obj = (AwsReservationInventory, {'reservation_id':rsrv.id}, {
+                    'instance_type' : rsrv.instance_type,
+                    'availability_zone' : rsrv.availability_zone,
+                    'account' : get_account_number(account),
+                    'purchase_date' : date_parser.parse(rsrv.start).strftime(DATE_FORMAT),
+                    'expiration_date' : date_parser.parse(rsrv.end).strftime(DATE_FORMAT),
+                    'instance_count' : rsrv.instance_count
+                })
         objects.append(obj)
     return objects
 
@@ -108,6 +106,8 @@ def get_account_number(name):
 def insert_or_update(session, model, defaults=None, **kwargs):
     instance = session.query(model).filter_by(**kwargs).first()
     if instance:
+        for k,v in defaults.iteritems():
+            setattr(instance, k, v)
         return instance
     else:
         params = dict((k, v) for k, v in kwargs.iteritems() if not isinstance(v, ClauseElement))
@@ -134,51 +134,52 @@ def main(argv=sys.argv):
     global creds_file
     creds_file = settings['creds.dir'] + "/creds.yaml"
 
-    global now
-    now = datetime.now()
 
     # global to enable us to handle KeyboardInterrupts without leaving zombies around.
     global pool
-    pool = Pool(processes=MAX_PROCESSES)
+    pool = Pool(processes=cpu_count()*2)
 
     objects = []
     pids = []
 
-    with DBSession.no_autoflush:
-        for account in get_accounts():
-            access_key, secret_key = get_creds(account)
-            regions = boto.ec2.regions()
+    for account in get_accounts():
+        access_key, secret_key = get_creds(account)
+        regions = boto.ec2.regions()
 
-            for region in regions:
-                # skip restricted access regions
-                if region.name in [ 'us-gov-west-1', 'cn-north-1' ]:
-                    continue
+        for region in regions:
+            # skip restricted access regions
+            if region.name in [ 'us-gov-west-1', 'cn-north-1' ]:
+                continue
 
-                log.debug('checking %s: %s' % (account,region.name))
-                ec2 = boto.ec2.connect_to_region(region.name,
-                        aws_access_key_id=access_key,
-                        aws_secret_access_key=secret_key)
+            log.debug('checking %s: %s' % (account,region.name))
+            ec2 = boto.ec2.connect_to_region(region.name,
+                    aws_access_key_id=access_key,
+                    aws_secret_access_key=secret_key)
 
-                r1 = pool.apply_async(update_instance_inventory, (ec2, account),
-                        callback=objects.extend)
-                r2 = pool.apply_async(update_reservation_inventory, (ec2, account),
-                        callback=objects.extend)
+            r1 = pool.apply_async(update_instance_inventory, (ec2, account),
+                    callback=objects.extend)
+            r2 = pool.apply_async(update_reservation_inventory, (ec2, account),
+                    callback=objects.extend)
 
-                pids.append(r1)
-                pids.append(r2)
+            pids.append(r1)
+            pids.append(r2)
 
-            # get the output of all our processes
-            for pid in pids:
-                pid.get()
-            del(pids[:])
+        # get the output of all our processes
+        for pid in pids:
+            pid.get()
+        del(pids[:])
 
-            # ensure the sqlalchemy objects aren't garbage-collected before we commit them.
-            # see:
-            # http://docs.sqlalchemy.org/en/latest/orm/session_state_management.html#session-referencing-behavior
-            merged = []
-            for obj in objects:
-                merged.append(DBSession.merge(obj))
-            transaction.commit()
+    # ensure the sqlalchemy objects aren't garbage-collected before we commit them.
+    # see: http://docs.sqlalchemy.org/en/latest/orm/session_state_management.html#session-referencing-behavior
+    merged = []
+    for col, kwargs, defaults in objects:
+        obj = insert_or_update(DBSession, col, defaults=defaults, **kwargs)
+        merged.append(DBSession.merge(obj))
+    try:
+        transaction.commit()
+    except IntegrityError as e:
+        DBSession.rollback()
+        log.error(e)
 
     pool.close()
     pool.join()
