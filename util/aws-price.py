@@ -128,11 +128,12 @@ def main(args=sys.argv):
     DBSession.configure(bind=engine)
 
     price = lookup_price(options)
-    for p in sorted(price, key=lambda x: x['PurchaseOption']):
-        if options.pricing == 'OnDemand':
+    if options.pricing == 'OnDemand':
+        for p in price:
             for k,v in p.items():
                 print '%s %s in %s: %s per %s' % (options.pricing, options.instance_type, options.region, v,k)
-        elif options.pricing == 'Reserved':
+    elif options.pricing == 'Reserved':
+        for p in sorted(price, key=lambda x: x['PurchaseOption']):
             print '%s %s' % (p.pop('LeaseContractLength'), p.pop('PurchaseOption'))
             for k,v in p.items():
                 print '\t%s - %s %s' % (k, v.items()[0][1], v.items()[0][0])
