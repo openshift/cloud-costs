@@ -172,5 +172,6 @@ class TestCostAllocationByAccount(unittest.TestCase):
         request.params = { 'date' : yesterday.strftime('%Y-%m-%d') }
         info = cost_allocation_by_account(request)
         self.assertEqual(info['selectors']['date']['selected'], yesterday.strftime('%Y-%m-%d'))
-        self.assertEqual(info['totals'], {u'linked account name [0]':{u'product name':'6.00'}})
+        self.assertEqual(info['data'][0]['name'], 'Lorem')
+        self.assertEqual(info['data'][0]['parent'], '')
 

@@ -259,3 +259,6 @@ class AwsReservationInventory(Base):
 #    value = Column(Integer)
 #
 #Index('my_index', MyModel.name, unique=True, mysql_length=255)
+Index('product_idx1', AwsDetailedLineItem.product_name, unique=True)
+Index('start_date_idx1', AwsDetailedLineItem.usage_start_date, unique=True)
+Index('linked_account_idx1', AwsDetailedLineItem.linked_account_id, unique=True)
