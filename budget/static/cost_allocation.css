@@ -2,104 +2,8 @@ body {
 		background-color: #faedcf;
 }
 
-.aws_account_table {
-		padding: 0 0 0 0;
-		margin: 0 0 15px 0;
-		background-color: #fef7e7;
-		width: 100%;
-}
-
-.aws_account_name {
-		text-align: left;
-		padding: 0 0 0 10px;
-}
-
-.aws_account_total {
-		float: right;
-		margin: 0 0 0 0;
-		padding: 2px 10px 0 0;
-}
-
-.aws_product_table {
-		padding: 0 0 0 5px;
-		margin: -1px 0 0 0;
-		width: 100%;
-		background-color: #f6db98;
-}
-
-.aws_product_name {
-		text-align: left;
-		padding: 0 0 0 10px;
-}
-
-.aws_product_total {
-		float: right;
-		margin: 0 0 0 0;
-		padding: 0 10px 0 0;
-}
-
-.aws_lineitem_head {
-		padding: 0 0 0 0;
-		margin: 0 0 0 0;
-		background-color: #fff5cc;
-}
-
-.aws_lineitem_list {
-		background-color: #fff;
-		margin: 0 0 0 0;
-		padding-top: 5px;
-		padding-bottom: 5px;
-		padding-left: 0px;
-		line-height: 2em;
-}
-
-.aws_usage_type {
-		margin: 0 0 0 0;
-		padding: 4px 15px 4px 15px;
-}
-
-.aws_item_description {
-		margin: 0 0 0 0;
-		padding: 4px 15px 4px 15px;
-}
-
-.aws_usage_quantity {
-		margin: 0 0 0 -1px;
-		padding: 4px 15px 4px 15px;
-		text-align: right;
-}
-
-.aws_blended_rate {
-		margin: 0 0 0 -1px;
-		padding: 4px 15px 4px 15px;
-		text-align: right;
-}
-
-.aws_total_cost {
-		margin: 0 0 0 -1px;
-		padding: 4px 15px 4px 15px;
-		text-align: right;
-}
-
-.header {
-		margin: 0 0 0 0;
-		padding: 0 0 0 0;
-}
-
-.header .sign:after{
-		content:"+";
-		float: left;
-		display: inline;
-}
-
-.header.expand .sign:after{
-		content:"-";
-		float: left;
-		display: inline;
-}
-
 .selectors {
-		margin: 0 0 10px 0;
+		margin: 10px 0 10px 0;
 		padding: 0 0 0 0;
 		height: 50px;
 		float: left;
@@ -125,87 +29,8 @@ body {
 		display: inline-block;
 		background-color: #DDD;
 		border: 1px outset #AAA;
-		vertical-align: 15px;
+		vertical-align: 2px;
 		font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
-}
-
-.toggle-div {
-		margin: 0 0 10px 0;
-		padding: 0 0 0 0;
-		height: 50px;
-		width: auto;
-		float: right;
-		display: inline-block;
-}
-
-.toggle-span {
-		margin: 0 0 0 0;
-		padding: 2px 2px 2px 2px;
-		background-color: #DDD;
-		border: 1px outset #AAA;
-		vertical-align: -15px;
-		font-size: 80%;
-}
-
-.tooltip {
-		padding: 8px;
-		postition: relative;
-		display: none;
-		z-index: 9999;
-		max-width: 300px;
-		-webkit-box-shadow: 0 0 5px #aaa;
-		box-shadow: 0 0 5px #aaa;
-}
-
-.metadata-list-div {
-		margin: 10px 0 10px 0;
-		padding: 5px 0 5px 0;
-		width: 100%;
-		clear: both;
-		border-top: 1px solid #CCC;
-		border-bottom: 1px solid #CCC;
-		font-size: 0.80em;
-}
-
-.metadata-title {
-		margin: 0 0 0 0;
-		padding: 0 2px 0 0;
-}
-
-.metadata-span {
-		margin: 0 0 0 0;
-		padding: 0 2px 0 0;
-}
-
-p.metadata {
-		text-decoration: none;
-		font-weight: 200;
-		display: inline;
-}
-
-p.metadata:hover {
-		text-decoration: underline;
-		font-weight: 600;
-		display: inline;
-}
-
-.grand-total-div {
-		margin: 10px 0 10px 0%;
-		padding: 5px 0 5px 0;
-		background-color: white;
-		height: 20px;
-}
-
-.grand-total-title {
-		padding: 0 0 0 10px;
-		float: left;
-		display: inline-block;
-}
-
-.grand-total-amount {
-		float: right;
-		display: inline-block;
-		padding: 0 10px 0 0;
 }
 
 .graph-icon-span {
@@ -225,5 +50,120 @@ p.metadata:hover {
 #chart {
 		height: 100%;
 		width: 100%;
+}
+
+.toggle-div {
+               margin: 0 0 10px 0;
+               padding: 0 0 0 0;
+               height: 50px;
+               width: auto;
+               float: right;
+               display: inline-block;
+}
+
+.toggle-span {
+               margin: 0 0 0 0;
+               padding: 2px 2px 2px 2px;
+               background-color: #DDD;
+               border: 1px outset #AAA;
+               vertical-align: -10px;
+               font-size: 80%;
+}
+
+td {
+		background-color: #f9f9f9;
+}
+
+.treetable {
+		width: 1200px;
+}
+
+.span-container {
+		padding-left: 23em;
+}
+
+.branch {
+border-top: #BBB solid 1px;
+}
+
+.name-span {
+		padding: 0 0 0 0 !important;
+		font-weight: 600;
+}
+
+.rollup-cost-span {
+		display: inline;
+		float: right;
+		font-weight: 600;
+}
+
+.indenter-head {
+		width: 0.25em;
+}
+
+.tag-head {
+		width: 6em;
+}
+
+.account-head {
+		width: 6em;
+}
+
+.service-head {
+		width: 6em;
+}
+
+.description-head {
+		width: 35em;
+}
+
+.description-span {
+		display: table-cell;
+		width: 32em;
+		padding: 0 0 0 0 !important;
+		margin: 0 0 0 0 !important;
+}
+
+.usage-type-head {
+		width: 13em;
+}
+.usage-type-span {
+		display: table-cell;
+		width: 13em;
+		padding: 0 0 0 20px !important;
+		margin: 0 0 0 0 !important;
+}
+
+.usage-quantity-head {
+		width: 10em;
+}
+.usage-quantity-span {
+		display: table-cell;
+		text-align: right;
+		width: 10em;
+		padding: 0 5px 0 5px !important;
+		margin: 0 0 0 0 !important;
+}
+
+.blended-rate-head {
+		width: 5em;
+}
+.blended-rate-span {
+		display: table-cell;
+		text-align: right;
+		width: 5em;
+		padding: 0 5px 0 5px !important;
+		margin: 0 0 0 0 !important;
+}
+
+.total-cost-head {
+		width: 5em;
+}
+.total-cost-span {
+		display: table-cell;
+		text-align: right;
+		width: 5em;
+		padding: 0 5px 0 5px !important;
+		margin: 0 0 0 0 !important;
 }
 

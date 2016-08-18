@@ -1,6 +1,12 @@
 from datetime import datetime, timedelta
 from decimal import Decimal, getcontext
 
+# The TreeTable JS module we're using needs us to identify parent-child
+# relationships in our hierarchy. Each label needs to be unique, but isn't
+# otherwise meaningful. Randomly generated UUIDs seems like the right fit
+# for that.
+from uuid import uuid4 as uuid
+
 from pyramid.response import Response
 from pyramid.view import view_config
 
@@ -34,10 +40,11 @@ def get_metadata(account_id):
         metadata = []
     return metadata
 
-@view_config(route_name='cost_allocation', match_param='type=by_account', renderer='budget:templates/cost_allocation.pt')
-def cost_allocation_by_account(request):
-    log.debug(request.params)
-
+def get_dates(params):
+    ''' Fetch dates we have invoices for within the last year.
+        Return date list for future use -selections and a selected date the UI
+        should display data from.
+    '''
     dates = DBSession.query(
                 AwsCostAllocation.billing_period_start_date.distinct()
             ).filter(
@@ -45,103 +52,216 @@ def cost_allocation_by_account(request):
             ).all()
     dates = sorted(set([ item[0].strftime("%Y-%m-%d") for item in dates ]))
 
-    if 'date' in request.params:
-        selected_date = datetime.strptime(request.params['date'], "%Y-%m-%d")
+    if 'date' in params:
+        selected_date = datetime.strptime(params['date'], "%Y-%m-%d")
     else:
         selected_date = max(dates)
 
+    return (dates, selected_date)
+
+@view_config(route_name='cost_allocation', match_param='type=by_account', renderer='budget:templates/cost_allocation.pt')
+def cost_allocation_by_account(request):
+    ''' Produce a hierarchy of cost-categories to provide a high-level summary
+        of spending while enabling a user to drill-into the billing details.
+    '''
+    log.debug(request.params)
+
+    dates, selected_date = get_dates(request.params)
+
+    results = DBSession.query(
+                AwsAccountMetadata.account_id,
+                AwsAccountMetadata.account_name,
+                AwsAccountMetadata.tags,
+            ).all()
+
+    # create objects of accounts and tags to build our hierarchy from
+    accounts = {}
+    tags = []
+    for res in results:
+        accounts[res.account_id] = {
+                    'account_name' : res.account_name,
+                    'tags' : res.tags.split(',') }
+        for tag in res.tags.split(','):
+            if tag not in tags:
+                tags.append(tag)
+
+    # distinct list of products
+    products = DBSession.query(AwsCostAllocation.product_name.distinct()).all()
+
+    # line items for the selected invoice
     cost_lines = DBSession.query(
-                AwsCostAllocation.linked_account_name,
                 AwsCostAllocation.linked_account_id,
+                AwsCostAllocation.linked_account_name,
                 AwsCostAllocation.product_name,
                 AwsCostAllocation.usage_type,
                 AwsCostAllocation.item_description,
                 AwsCostAllocation.usage_quantity,
                 AwsCostAllocation.blended_rate,
-                AwsCostAllocation.total_cost
+                AwsCostAllocation.total_cost,
             ).filter(
                 AwsCostAllocation.billing_period_start_date == selected_date,
             ).order_by(
+                asc(AwsCostAllocation.linked_account_id),
                 asc(AwsCostAllocation.usage_type)
             ).all()
 
-    data = {}
-    totals = {}
-    metadata = {}
-    ri_total = {}
+    class Branch(object):
+        def __init__(self, **kwargs):
+            self.parent = None
+            self.children = []
+            self.uuid = uuid()
+            self.name = self.__class__
 
+            for arg,val in kwargs.iteritems():
+                setattr(self, arg, val)
+
+        def __repr__(self):
+            return str(self.uuid)
+
+        def get_child_by_name(self, name):
+            # Each parent's children is expected to have a unique name among
+            # its siblings.
+            #
+            # Different parents can have children with the same name, however.
+            for child in self.children:
+                if child.name == name:
+                    return child
+            return None
+
+        def total_cost(self):
+            # don't double-count the totals.
+            if self.name == 'Total':
+                return None
+
+            total = 0
+            for child in self.children:
+                c = child.total_cost()
+                if c:
+                    total += c
+            return total
+
+        def dump(self):
+            ''' traverse our children and return a sanitized list of our
+                __dict__ and our children's __dict__
+            '''
+
+            blacklist = ['children']
+            out = []
+            me = {}
+            tc = self.total_cost()
+            if tc:
+                me['total_cost'] = locale.currency(self.total_cost(), grouping=True)
+
+            for k,v in self.__dict__.iteritems():
+                if k not in blacklist:
+                    me[k] = str(v)
+            out.append(me)
+            for child in self.children:
+                if getattr(child, 'children', None) or isinstance(child, Leaf):
+                    out.extend(child.dump())
+            return out
+
+    class Leaf(object):
+        def __init__(self, **kwargs):
+            self.parent = None
+            self.uuid = uuid()
+            self.name = self.__class__
+            self.content = None
+
+            for arg,val in kwargs.iteritems():
+                setattr(self, arg, val)
+
+        def total_cost(self):
+            return self.content['total_cost']
+
+        def dump(self):
+            rendered_content = {}
+            for k,v in self.content.iteritems():
+                if isinstance(v, Decimal):
+                    rendered_content[k] = locale.currency(v, grouping=True)
+                elif isinstance(v, float):
+                    rendered_content[k] = locale.format('%.4f', v, grouping=True)
+                else:
+                    rendered_content[k] = str(v)
+
+            return [{'uuid':self.uuid,
+                    'parent':self.parent,
+                    'content':rendered_content}]
+
+    # build out our hierarchy
+    root = []
+
+    # Tag-level
+    for tag in sorted(tags):
+        tag_branch = Branch(parent='', name=tag)
+        root.append(tag_branch)
+
+        # Account-level
+        for account in sorted(accounts, key=lambda x: accounts[x]['account_name']):
+            if tag not in accounts[account]['tags']:
+               continue
+
+            account_branch = Branch(parent=tag_branch,
+                                    name=accounts[account]['account_name'])
+            tag_branch.children.append(account_branch)
+
+            # Product-level
+            for product, in sorted(products, key=lambda x: x[0]):
+                if product == '':
+                    product_name = 'Total'
+                else:
+                    product_name = product
+
+                product_branch = Branch(parent=account_branch,
+                                        name=product_name)
+                account_branch.children.append(product_branch)
+
+
+    # shove the leaves into the bottom level of the hierarchy
     for line in cost_lines:
-        # set account_name
-        if line.linked_account_name == '':
-            account_name = "Total"
-        else:
-            account_name = "%s [%s]" % (line.linked_account_name, line.linked_account_id)
+        data = {
+                'name' : 'data',
+                'content' : {
+                    'usage_type' : line.usage_type,
+                    'description' : line.item_description,
+                    'usage_quantity' : line.usage_quantity,
+                    'blended_rate' : Decimal(line.blended_rate),
+                    'total_cost' : Decimal(line.total_cost),
+                    }
+                }
+        leaf = Leaf(**data)
+        for tag_branch in root:
+            acct = tag_branch.get_child_by_name(line.linked_account_name)
+            if acct:
+                if line.product_name == '':
+                    product_name = 'Total'
+                else:
+                    product_name = line.product_name
+                product = acct.get_child_by_name(product_name)
+                setattr(leaf, 'parent', product)
+                product.children.append(leaf)
 
-        # identify RI up-front fees
-        if re.search(r'Sign up charge for subscription',
-                line.item_description):
-            addset(ri_total, account_name, line.total_cost)
-            continue
+    #TODO: product totals
 
-        # build our basic table output
-        datum = "".join([
-                "<tr class='aws_lineitem_list'>",
-                "<td class='aws_usage_type'>%s</td>" % line.usage_type,
-                "<td class='aws_item_description'>%s</td>" % line.item_description,
-                "<td class='aws_usage_quantity'>%s</td>" % locale.format("%.8f",
-                                                                        line.usage_quantity,
-                                                                        grouping=True).rstrip('0').rstrip('.'),
-                "<td class='aws_blended_rate'>$%s</td>" % locale.format("%.3f",
-                                                                        line.blended_rate,
-                                                                        grouping=True).rstrip('0').rstrip('.'),
-                "<td class='aws_total_cost'>$%.2f</td>" % Decimal(line.total_cost),
-                "</tr>"])
+#                    # identify RI up-front fees
+#                    # TODO: insert this into our hierarchy somewhere
+#                    if re.search(r'Sign up charge for subscription',
+#                            line.item_description):
+#                        ri_total += line.total_cost
+#                        continue
+#
 
-        # fetch metadata
-        if account_name not in metadata.keys():
-            metadata[account_name] = get_metadata(line.linked_account_id)
-
-        if line.product_name == '':
-            product_name = "Sub-Total"
-        else:
-            product_name = line.product_name
-
-        # init data structures
-        if account_name not in data.keys():
-            data[account_name] = {}
-
-        if account_name not in totals:
-            totals[account_name] = {}
-
-        # populate data structures
-        if account_name != "Total" and product_name != "Sub-Total":
-            addset(totals[account_name], product_name, line.total_cost)
-
-        if account_name != "Total" and product_name == "Sub-Total":
-            totals[account_name]['account_total'] = line.total_cost
-        else:
-            addset(data[account_name], product_name, datum)
-
-    # collect account totals
-    for account in totals:
-        # adjust sub-total to remove RI up-front fees.
-        if account in totals and account in ri_total:
-            totals[account]['account_total'] = totals[account]['account_total'] - ri_total[account]
-
-        for product in totals[account]:
-            totals[account][product] = locale.format("%.2f",
-                                                    totals[account][product],
-                                                    grouping=True)
 
     # munge selected_date to avoid presenting "dd/mm/yy 00:00:00" in the UI
     if not isinstance(selected_date, str):
         selected_date = selected_date.strftime("%Y-%m-%d")
 
-    log.debug(ri_total)
+    #log.debug(ri_total)
+    rendered = []
+    for x in root:
+        rendered.extend(x.dump())
 
-    return { 'data' : data,
-            'totals' : totals,
-            'metadata' : metadata,
+    return { 'data' : rendered,
             'selectors' : {
                 'date' : {
                         'selected' : selected_date,
