@@ -86,12 +86,33 @@ td {
 border-top: #BBB solid 1px;
 }
 
+.odd {
+		background: #f2f2f2;
+}
+
+.even {
+		background: #e6e6e6;
+}
 .name-span {
 		padding: 0 0 0 0 !important;
 		font-weight: 600;
 }
 
-.rollup-cost-span {
+.rollup-cost-span.tag {
+		display: inline;
+		float: right;
+		font-weight: 600;
+		font-size: 1.1em
+}
+
+.rollup-cost-span.account {
+		display: inline;
+		float: right;
+		font-weight: 300;
+		font-size: 1.1em
+}
+
+.rollup-cost-span.product {
 		display: inline;
 		float: right;
 		font-weight: 600;

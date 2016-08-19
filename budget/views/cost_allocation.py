@@ -111,6 +111,7 @@ def cost_allocation_by_account(request):
             self.children = []
             self.uuid = uuid()
             self.name = self.__class__
+            self.datatype = 'Branch'
 
             for arg,val in kwargs.iteritems():
                 setattr(self, arg, val)
@@ -167,6 +168,7 @@ def cost_allocation_by_account(request):
             self.uuid = uuid()
             self.name = self.__class__
             self.content = None
+            self.datatype = 'Leaf'
 
             for arg,val in kwargs.iteritems():
                 setattr(self, arg, val)
@@ -193,7 +195,7 @@ def cost_allocation_by_account(request):
 
     # Tag-level
     for tag in sorted(tags):
-        tag_branch = Branch(parent='', name=tag)
+        tag_branch = Branch(parent='', name=tag, datatype='tag')
         root.append(tag_branch)
 
         # Account-level
@@ -202,7 +204,8 @@ def cost_allocation_by_account(request):
                continue
 
             account_branch = Branch(parent=tag_branch,
-                                    name=accounts[account]['account_name'])
+                                    name=accounts[account]['account_name'],
+                                    datatype='account')
             tag_branch.children.append(account_branch)
 
             # Product-level
@@ -213,7 +216,8 @@ def cost_allocation_by_account(request):
                     product_name = product
 
                 product_branch = Branch(parent=account_branch,
-                                        name=product_name)
+                                        name=product_name,
+                                        datatype='product')
                 account_branch.children.append(product_branch)
 
 
@@ -227,7 +231,8 @@ def cost_allocation_by_account(request):
                     'usage_quantity' : line.usage_quantity,
                     'blended_rate' : Decimal(line.blended_rate),
                     'total_cost' : Decimal(line.total_cost),
-                    }
+                    },
+                'datatype' : 'lineitem'
                 }
         leaf = Leaf(**data)
         for tag_branch in root:
@@ -251,6 +256,12 @@ def cost_allocation_by_account(request):
 #                        continue
 #
 
+    # Prune empty entries
+    root = [x for x in root if x.name != 'unused']
+    for x in root:
+        for y in x.children:
+            if not y.total_cost():
+                x.children.remove(y)
 
     # munge selected_date to avoid presenting "dd/mm/yy 00:00:00" in the UI
     if not isinstance(selected_date, str):

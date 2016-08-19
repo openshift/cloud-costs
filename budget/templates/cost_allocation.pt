@@ -52,9 +52,11 @@
 						</thead>
 						<tbody>
 						<tr tal:repeat='datum data' data-tt-id='${datum["uuid"]}'
-								tal:attributes="data-tt-parent-id datum['parent']">
-								<td tal:condition='exists:datum["content"]' colspan=9>
-										<div class=span-container>
+								tal:attributes="data-tt-parent-id datum['parent'];">
+								<td tal:condition='exists:datum["content"]'
+										tal:define="odd repeat.datum.odd"
+										tal:attributes='class odd and "odd" or "even"' colspan=9>
+										<div class="span-container">
 												<span class='description-span'>${datum['content']['description']}</span>
 												<span class='usage-type-span'>${datum['content']['usage_type']}</span>
 												<span class='usage-quantity-span'>${datum['content']['usage_quantity']}</span>
@@ -64,7 +66,7 @@
 								</td>
 								<td tal:condition='datum.get("content")==None' colspan=9>
 										<span class='name-span'>${datum["name"]}</span>
-										<span tal:condition='exists:datum["total_cost"]' class='rollup-cost-span'>${datum["total_cost"]}</span>
+										<span tal:condition='exists:datum["total_cost"]' class='rollup-cost-span ${datum["datatype"]}'>${datum["total_cost"]}</span>
 								</td>
 						</tr>
 						</tbody>
