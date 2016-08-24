@@ -57,6 +57,10 @@ def get_dates(params):
     else:
         selected_date = max(dates)
 
+    # munge selected_date to avoid presenting "dd/mm/yy 00:00:00" in the UI
+    if not isinstance(selected_date, str):
+        selected_date = selected_date.strftime("%Y-%m-%d")
+
     return (dates, selected_date)
 
 @view_config(route_name='cost_allocation', match_param='type=by_account', renderer='budget:templates/cost_allocation.pt')
@@ -149,9 +153,13 @@ def cost_allocation_by_account(request):
             blacklist = ['children']
             out = []
             me = {}
-            tc = self.total_cost()
-            if tc:
+
+            # Don't show any entries that don't have line items on this
+            # invoice.
+            if self.has_leaf() and self.total_cost():
                 me['total_cost'] = locale.currency(self.total_cost(), grouping=True)
+            else:
+                return []
 
             for k,v in self.__dict__.iteritems():
                 if k not in blacklist:
@@ -161,6 +169,18 @@ def cost_allocation_by_account(request):
                 if getattr(child, 'children', None) or isinstance(child, Leaf):
                     out.extend(child.dump())
             return out
+
+        def has_leaf(self):
+            ''' traverse our children, return Boolean about whether we have any
+                Leaf objects in the tree
+            '''
+            for child in self.children:
+                if isinstance(child, Leaf):
+                    return True
+                elif isinstance(child, Branch):
+                    if child.has_leaf():
+                        return True
+            return False
 
     class Leaf(object):
         def __init__(self, **kwargs):
@@ -255,18 +275,6 @@ def cost_allocation_by_account(request):
 #                        ri_total += line.total_cost
 #                        continue
 #
-
-    # Prune empty entries
-    root = [x for x in root if x.name != 'unused']
-    for x in root:
-        for y in x.children:
-            if not y.total_cost():
-                x.children.remove(y)
-
-    # munge selected_date to avoid presenting "dd/mm/yy 00:00:00" in the UI
-    if not isinstance(selected_date, str):
-        selected_date = selected_date.strftime("%Y-%m-%d")
-
     #log.debug(ri_total)
     rendered = []
     for x in root:
