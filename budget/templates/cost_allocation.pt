@@ -52,7 +52,10 @@
 						</thead>
 						<tbody>
 						<tr tal:repeat='datum data' data-tt-id='${datum["uuid"]}'
-								tal:attributes="data-tt-parent-id datum['parent'];">
+								tal:define="style_collapse 'display: none;;'"
+								tal:attributes="data-tt-parent-id datum['parent'] or None;
+										style datum.get('parent') and style_collapse or None;"
+						>
 								<td tal:condition='exists:datum["content"]'
 										tal:define="odd repeat.datum.odd"
 										tal:attributes='class odd and "odd" or "even"' colspan=9>
