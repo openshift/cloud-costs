@@ -293,18 +293,16 @@ def cost_allocation_by_account(request):
 def cost_allocation_graph(request):
     log.debug(request.params)
 
-    caller = None
+    account_name = None
     selected_date = None
 
-    if 'caller' in request.params:
-        # extract linked account id.
-        caller = request.params["caller"]
-        account_id = request.params["caller"].split('-')[-1]
+    if request.params.get('caller', None):
+        account_name = request.params["caller"]
 
-    if 'selected_date' in request.params:
+    if request.params.get('selected_date', None):
         selected_date = datetime.strptime(request.params['selected_date'], "%Y-%m-%d")
 
-    if not caller and not selected_date:
+    if not account_name and not selected_date:
         return { 'data' : '<p>No graph to show</p>' }
 
     graph_data = []
@@ -313,7 +311,7 @@ def cost_allocation_graph(request):
                 AwsCostAllocation.total_cost,
                 AwsCostAllocation.billing_period_start_date
             ).filter(
-                AwsCostAllocation.linked_account_id == account_id,
+                AwsCostAllocation.linked_account_name == account_name,
                 AwsCostAllocation.billing_period_start_date >= last_year,
                 AwsCostAllocation.record_type == 'AccountTotal'
             ).order_by(
@@ -331,5 +329,5 @@ def cost_allocation_graph(request):
                 yDomain=[0, max([r.total_cost for r in results])],
                 showXAxis=False
             )
-    graph.data = [{ 'key' : str(caller), 'values' : graph_data}]
+    graph.data = [{ 'key' : str(account_name), 'values' : graph_data}]
     return { 'data' : graph }

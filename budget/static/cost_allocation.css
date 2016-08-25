@@ -2,11 +2,12 @@ body {
 		background-color: #faedcf;
 }
 
+/* date selector */
 .selectors {
-		margin: 10px 0 10px 0;
+		margin: 10px 0 5px 0;
 		padding: 0 0 0 0;
-		height: 50px;
-		float: left;
+		height: 20px;
+		display: inline-block;
 }
 
 .selector-label {
@@ -33,18 +34,15 @@ body {
 		font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 
+/* graph dialog */
 .graph-icon-span {
-		display: inline;
-		float: right;
-		margin: 0 10px 0 0;
-		padding: 0 0 0 0;
+		display: inline-block;
+		margin: 0 0 0 0;
+		padding: 0 0 0 2em;
 }
 .graph-icon {
-		height: 20px;
-		width: 20px;
-}
-#graph-dialog {
-		width: 96% !important;
+		height: 17px;
+		width: 17px;
 }
 
 #chart {
@@ -52,24 +50,24 @@ body {
 		width: 100%;
 }
 
+/* Toggle buttons */
 .toggle-div {
-               margin: 0 0 10px 0;
-               padding: 0 0 0 0;
-               height: 50px;
-               width: auto;
-               float: right;
+               margin: 10px 28px 5px 0;
+               padding: 0 0 5px 0;
+               height: 20px;
                display: inline-block;
+               float: right;
 }
 
 .toggle-span {
-               margin: 0 0 0 0;
+               margin: 0 5px 2px 5px;
                padding: 2px 2px 2px 2px;
                background-color: #DDD;
                border: 1px outset #AAA;
-               vertical-align: -10px;
                font-size: 80%;
 }
 
+/* table style */
 td {
 		background-color: #f9f9f9;
 }

@@ -6,9 +6,9 @@
     <link href="${request.static_url('budget:static/cost_allocation.css')}" rel="stylesheet">
 
 		<!-- jquery & jqueryUI -->
-		<script src="${request.static_url('budget:static/jquery-2.1.4.min.js')}"></script>
-		<script src="${request.static_url('budget:static/jquery-ui-1.11.4/jquery-ui.min.js')}"></script>
-    <link href="${request.static_url('budget:static/jquery-ui-1.11.4/jquery-ui.min.css')}" rel="stylesheet">
+		<script src="${request.static_url('budget:static/jquery-2.1.4.js')}"></script>
+		<script src="${request.static_url('budget:static/jquery-ui-1.11.4/jquery-ui.js')}"></script>
+    <link href="${request.static_url('budget:static/jquery-ui-1.11.4/jquery-ui.css')}" rel="stylesheet">
 
 		<!-- jquery treetable -->
 		<script src="${request.static_url('budget:static/jquery.treetable.js')}"></script>
@@ -69,20 +69,57 @@
 								</td>
 								<td tal:condition='datum.get("content")==None' colspan=9>
 										<span class='name-span'>${datum["name"]}</span>
+										<span tal:condition='datum["datatype"]=="account"' class="graph-icon-span">
+												<img class="graph-icon"
+																id="graph-${datum['name'].replace(' ', '-').translate(None, '][')}"
+																src="${request.static_url('budget:static/graph-icon.svg')}"
+												/>
+                   </span>
 										<span tal:condition='exists:datum["total_cost"]' class='rollup-cost-span ${datum["datatype"]}'>${datum["total_cost"]}</span>
 								</td>
 						</tr>
 						</tbody>
 				</table>
 		</div>
+		<div id="graph-dialog"></div>
 		<script>
 $("table.treetable").treetable({
 		expandable: true,
-		clickableNodeNames: true,
+		clickableNodeNames: false,
 		indent: 90,
 });
 $("#expand-all").click(function() { $("table.treetable").treetable("expandAll"); });
 $("#collapse-all").click(function() { $("table.treetable").treetable("collapseAll"); });
+
+// Graph Dialog
+var dialog = $("#graph-dialog").dialog({
+                                autoOpen: false,
+                                height: 'auto',
+                                width: 'auto',
+                                modal: false,
+                                resizable: true,
+                                closeOnEscape: true,
+                                closeText: null,
+});
+
+$(".graph-icon-span").click(function() {
+		var this_id = $(this).siblings('.name-span').text();
+		$.ajax({
+				type: 'POST',
+				url: '/cost_allocation/graph',
+				data: {
+						caller: this_id,
+						selected_date: $(".selector-dropdown option:selected").val()
+				},
+				dataType: "html",
+				success: function(data) {
+						$("#graph-dialog")
+								.html("<div id='chart'><svg id='d3-svg'/></div>"+data)
+								.dialog({ title: this_id })
+								.dialog("open");
+						}
+		})
+});
 		</script>
 </div>
 </html>
