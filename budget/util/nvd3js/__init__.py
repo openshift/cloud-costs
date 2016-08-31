@@ -102,6 +102,10 @@ function data() {
             return str(value).lower()
         elif isinstance(value, list):
             return str(value)
+        elif isinstance(value, dict):
+            return str(value)
+        elif value == 'null':
+            return str(value)
         else:
             return "'%s'" % str(value)
 
