@@ -423,24 +423,24 @@ def gcp_cost(request):
         if project not in graph_data.keys():
             graph_data[project] = []
 
-        end_times = DBSession.query(
-                        GcpLineItem.end_time.distinct()
+        start_times = DBSession.query(
+                        GcpLineItem.start_time.distinct()
                     ).filter(
                         GcpLineItem.project_name == project,
                         GcpLineItem.start_time >= last_year,
                     ).all()
 
-        for end, in end_times:
-            if end not in seen_dates:
-                seen_dates.append(epoch_date(end))
+        for start, in start_times:
+            if start not in seen_dates:
+                seen_dates.append(epoch_date(start))
 
             results = DBSession.query(func.sum(GcpLineItem.cost_amount)).filter(
                     GcpLineItem.project_name == project,
-                    GcpLineItem.end_time == end,
+                    GcpLineItem.start_time == start,
                 ).all()
 
             for r, in results:
-                data = [epoch_date(end), r]
+                data = [epoch_date(start), r]
                 graph_data[project].append(data)
 
     # remove spurious key.
