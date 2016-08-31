@@ -1,7 +1,48 @@
 <!DOCTYPE html>
 <html metal:use-macro="load: base.pt">
-
 <div metal:fill-slot="content">
+		<!-- jquery & jqueryUI -->
+		<script src="${request.static_url('budget:static/jquery-2.1.4.min.js')}"></script>
+		<script src="${request.static_url('budget:static/jquery-ui-1.11.4/jquery-ui.min.js')}"></script>
+    <link href="${request.static_url('budget:static/jquery-ui-1.11.4/jquery-ui.min.css')}" rel="stylesheet">
+
+		<!-- jquery gridly -->
+		<script src="${request.static_url('budget:static/jquery.gridly.js')}"></script>
+    <link href="${request.static_url('budget:static/jquery.gridly.css')}" rel="stylesheet">
+
+		<!-- d3 & nvd3 -->
+		<script src="${request.static_url('budget:static/d3.js')}" charset="utf-8"></script>
+		<script src="${request.static_url('budget:static/nv.d3.js')}" charset="utf-8"></script>
+		<link href="${request.static_url('budget:static/nv.d3.css')}" rel="stylesheet">
+
+		<!-- jquery treetable -->
+		<script src="${request.static_url('budget:static/jquery.treetable.js')}"></script>
+		<link href="${request.static_url('budget:static/jquery.treetable.css')}" rel="stylesheet">
+		<link href="${request.static_url('budget:static/jquery.treetable.theme.default.css')}" rel="stylesheet">
+
+		<!-- app-specific theme -->
+		<link href="${request.static_url('budget:static/root.css')}" rel="stylesheet">
+
+<div class="gridly">
+		<div class="brick large">
+				<div tal:replace="structure render_view('widget_gcp')"></div>
+		</div>
+		<div class="brick large">
+				<div tal:replace="structure render_view('widget_aws_cost')"></div>
+		</div>
+		<div class="brick small"></div>
+		<div class="brick small"></div>
+		<div class="brick small"></div>
+		<div class="brick large"></div>
+</div>
+
+<script>
+				$('.gridly').gridly({
+						base: 10, //px
+						gutter: 10, //px
+						columns: 60,
+				});
+</script>
 </div>
 
 </html>

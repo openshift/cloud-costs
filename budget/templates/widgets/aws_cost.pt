@@ -1,0 +1,36 @@
+<!-- requires: jquery, treetable -->
+<p>${title}</p>
+<div class='treetable'>
+		<table class='treetable'>
+				<tbody>
+				<tr tal:repeat='datum data' data-tt-id='${datum["uuid"]}'
+						tal:define="style_collapse 'display: none;;'"
+						tal:attributes="data-tt-parent-id datum['parent'] or None;
+								style datum.get('parent') and style_collapse or None;"
+				>
+						<td tal:condition='exists:datum["content"]'
+								tal:define="odd repeat.datum.odd"
+								tal:attributes='class odd and "odd" or "even"' colspan=9>
+								<div class="span-container">
+										<span class='description-span'>${datum['content']['description']}</span>
+										<span class='usage-type-span'>${datum['content']['usage_type']}</span>
+										<span class='usage-quantity-span'>${datum['content']['usage_quantity']}</span>
+										<span class='blended-rate-span'>${datum['content']['blended_rate']}</span>
+										<span class='total-cost-span'>${datum['content']['total_cost']}</span>
+								</div>
+						</td>
+						<td tal:condition='datum.get("content")==None' colspan=9>
+								<span class='name-span'>${datum["name"]}</span>
+								<span tal:condition='exists:datum["total_cost"]' class='rollup-cost-span ${datum["datatype"]}'>${datum["total_cost"]}</span>
+						</td>
+				</tr>
+				</tbody>
+		</table>
+</div>
+<script>
+$("table.treetable").treetable({
+		expandable: true,
+		clickableNodeNames: true,
+		indent: 5,
+});
+</script>

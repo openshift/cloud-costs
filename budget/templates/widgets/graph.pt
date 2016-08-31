@@ -1,0 +1,9 @@
+<!-- requires:
+		js: d3, nvd3
+		css: d3, nvd3
+-->
+<p class='graph-title'>${title}</p>
+<div class='d3-chart-container' id='chart'>
+		<svg id='d3-svg'></svg>
+</div>
+<script tal:replace='graph' />
