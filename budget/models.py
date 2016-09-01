@@ -141,17 +141,6 @@ class AwsPrice(Base):
     term_attributes = Column(Text(), nullable=True)
     json = Column(Text(), nullable=True)
 
-#XXX: half-baked idea - aggregate costs by product
-#class AwsProductCostAggregate(Base):
-#    __tablename__ = 'aws_product_cost_aggregate'
-#    id = Column(Integer, primary_key=True)
-#    linked_account_id = Column(BigInteger, nullable=True)
-#    product_name = Column(String(255), nullable=True)
-#    usage_start_date = Column(DateTime, nullable=False)
-#    usage_end_date = Column(DateTime, nullable=False)
-#    blended_cost = Column(Float, nullable=True)
-#    unblended_cost = Column(Float, nullable=True)
-
 class OpenshiftV3ProfileStats(Base):
     __tablename__ = 'openshift_v3_profile_stats'
 
@@ -238,14 +227,6 @@ class AwsReservationInventory(Base):
     expiration_date = Column(DateTime, nullable=False)
     instance_count = Column(Integer, nullable=False)
 
-
-#class MyModel(Base):
-#    __tablename__ = 'models'
-#    id = Column(Integer, primary_key=True)
-#    name = Column(Text)
-#    value = Column(Integer)
-#
-#Index('my_index', MyModel.name, unique=True, mysql_length=255)
 Index('product_idx1', AwsDetailedLineItem.product_name, unique=True)
 Index('start_date_idx1', AwsDetailedLineItem.usage_start_date, unique=True)
 Index('linked_account_idx1', AwsDetailedLineItem.linked_account_id, unique=True)
