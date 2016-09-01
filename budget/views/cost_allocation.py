@@ -26,7 +26,7 @@ locale.setlocale(locale.LC_ALL, "en_US")
 @view_config(route_name='cost_allocation', match_param='type=by_account', renderer='budget:templates/cost_allocation.pt')
 def cost_allocation_by_account(request):
     ''' Produce a hierarchy of cost-categories to provide a high-level summary
-        of spending while enabling a user to drill-into the billing details.
+        of spending while enabling a user to drill into the billing details.
     '''
     log.debug(request.params)
 
@@ -49,7 +49,7 @@ def cost_allocation_by_account(request):
             if tag not in tags:
                 tags.append(tag)
 
-    # distinct list of products
+    # fetch a distinct list of AWS products
     products = DBSession.query(AwsCostAllocation.product_name.distinct()).all()
 
     # line items for the selected invoice
@@ -69,6 +69,7 @@ def cost_allocation_by_account(request):
                 asc(AwsCostAllocation.usage_type)
             ).all()
 
+    print cost_lines
     # build out our hierarchy
     root = []
 

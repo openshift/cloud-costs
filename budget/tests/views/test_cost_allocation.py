@@ -16,6 +16,7 @@ now = datetime.now()
 today = datetime(now.year,now.month,now.day,0,0,0)
 yesterday = today - timedelta(days=1)
 
+# XXX: relocate
 class TestCostAllocationGetMetadata(unittest.TestCase):
     def setUp(self):
         self.config = testing.setUp()
@@ -155,8 +156,8 @@ class TestCostAllocationByAccount(unittest.TestCase):
                     )
             meta = AwsAccountMetadata(
                         account_id = 0,
-                        account_name = 'account name',
-                        tags = "Lorem,ipsum,dolor,sit,amet,consectetur"
+                        account_name = 'linked account name',
+                        tags = "test"
                     )
             DBSession.add(meta)
             DBSession.add(cost)
@@ -171,7 +172,8 @@ class TestCostAllocationByAccount(unittest.TestCase):
         request.context = testing.DummyResource()
         request.params = { 'date' : yesterday.strftime('%Y-%m-%d') }
         info = cost_allocation_by_account(request)
+        print info
         self.assertEqual(info['selectors']['date']['selected'], yesterday.strftime('%Y-%m-%d'))
-        self.assertEqual(info['data'][0]['name'], 'Lorem')
+        self.assertEqual(info['data'][0]['name'], 'test')
         self.assertEqual(info['data'][0]['parent'], '')
 
