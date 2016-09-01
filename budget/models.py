@@ -152,19 +152,6 @@ class AwsPrice(Base):
 #    blended_cost = Column(Float, nullable=True)
 #    unblended_cost = Column(Float, nullable=True)
 
-class OpenshiftProfileStats(Base):
-    __tablename__ = 'openshift_profile_stats'
-
-    id = Column(Integer, primary_key=True)
-    collection_date = Column(DateTime, nullable=False, unique=True)
-    profile_name = Column(String(255), nullable=False)
-    nodes_count = Column(Integer, nullable=True)
-    gears_active_count = Column(Integer, nullable=True)
-    gears_idle_count = Column(Integer, nullable=True)
-    gears_stopped_count = Column(Integer, nullable=True)
-    gears_unknown_count = Column(Integer, nullable=True)
-    gears_total_count = Column(Integer, nullable=True)
-
 class OpenshiftV3ProfileStats(Base):
     __tablename__ = 'openshift_v3_profile_stats'
 
