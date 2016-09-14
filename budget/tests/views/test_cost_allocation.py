@@ -1,19 +1,18 @@
 import unittest
 import transaction
 
-from datetime import datetime,timedelta
+from datetime import datetime, timedelta
 from pyramid import testing
-
-from budget.models import DBSession
 
 from budget.models import (
     Base,
+    DBSession,
     AwsAccountMetadata,
     AwsCostAllocation,
     )
 
 now = datetime.now()
-today = datetime(now.year,now.month,now.day,0,0,0)
+today = datetime(now.year, now.month, now.day, 0, 0, 0)
 yesterday = today - timedelta(days=1)
 
 # XXX: relocate

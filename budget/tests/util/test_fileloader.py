@@ -2,8 +2,6 @@ import os
 import unittest
 import budget.util.fileloader as f
 
-from StringIO import StringIO
-
 class TestFileLoaderYaml(unittest.TestCase):
     testdir = os.path.dirname(__file__)
     data = testdir+'/fileloader.yaml'

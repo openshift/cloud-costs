@@ -1,8 +1,8 @@
 #!/usr/bin/env python
+''' update the inventory of aws instances and reservations '''
 
 import boto.ec2
 import logging
-import os
 import sys
 import transaction
 
@@ -12,24 +12,20 @@ from multiprocessing import Pool, Queue, cpu_count
 
 from sqlalchemy import engine_from_config
 from sqlalchemy.sql import functions
-from sqlalchemy.sql.expression import ClauseElement
 from sqlalchemy.exc import IntegrityError
 
-from pyramid.paster import (
-    get_appsettings,
-    setup_logging,
-    )
+from pyramid.paster import (get_appsettings,
+                            setup_logging)
 
 from pyramid.scripts.common import parse_vars
 
-from ..models import (
-                        DBSession,
-                        AwsInstanceInventory,
-                        AwsReservationInventory,
-                        Base,
-                    )
+from ..models import (DBSession,
+                      AwsInstanceInventory,
+                      AwsReservationInventory,
+                      Base)
 
 from ..util.fileloader import load_yaml
+from ..util.queries.util import insert_or_update
 
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
@@ -102,20 +98,6 @@ def get_accounts():
 def get_account_number(name):
     return load_yaml(creds_file)[name]['account']
 
-# https://stackoverflow.com/questions/6611563/sqlalchemy-on-duplicate-key-update
-def insert_or_update(session, model, defaults=None, **kwargs):
-    instance = session.query(model).filter_by(**kwargs).first()
-    if instance:
-        for k,v in defaults.iteritems():
-            setattr(instance, k, v)
-        return instance
-    else:
-        params = dict((k, v) for k, v in kwargs.iteritems() if not isinstance(v, ClauseElement))
-        if defaults:
-            params.update(defaults)
-        instance = model(**params)
-        return instance
-
 def main(argv=sys.argv):
     if len(argv) < 2:
         usage(argv)
@@ -148,7 +130,7 @@ def main(argv=sys.argv):
 
         for region in regions:
             # skip restricted access regions
-            if region.name in [ 'us-gov-west-1', 'cn-north-1' ]:
+            if region.name in ['us-gov-west-1', 'cn-north-1']:
                 continue
 
             log.debug('checking %s: %s' % (account,region.name))
@@ -167,7 +149,7 @@ def main(argv=sys.argv):
         # get the output of all our processes
         for pid in pids:
             pid.get()
-        del(pids[:])
+        del pids[:]
 
     # ensure the sqlalchemy objects aren't garbage-collected before we commit them.
     # see: http://docs.sqlalchemy.org/en/latest/orm/session_state_management.html#session-referencing-behavior

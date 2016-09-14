@@ -141,35 +141,53 @@ class AwsPrice(Base):
     term_attributes = Column(Text(), nullable=True)
     json = Column(Text(), nullable=True)
 
-class OpenshiftV3ProfileStats(Base):
-    __tablename__ = 'openshift_v3_profile_stats'
+class Openshift3Node(Base):
+    __tablename__ = 'openshift3_node'
 
     id = Column(Integer, primary_key=True)
-    collection_date = Column(DateTime, nullable=False, unique=True)
-    cluster_name = Column(String(64), nullable=False)
-    compute_nodes = Column(Integer, nullable=False)
-    compute_node_pod_capacity = Column(Integer, nullable=False)
-    master_nodes = Column(Integer, nullable=False)
-    master_node_pod_capacity = Column(Integer, nullable=False)
-    unknown_nodes = Column(Integer, nullable=False)
-    unknown_node_pod_capacity = Column(Integer, nullable=False)
-    infra_nodes = Column(Integer, nullable=False)
-    infra_node_pod_capacity = Column(Integer, nullable=False)
-    total_pods = Column(Integer, nullable=False)
-    total_containers = Column(Integer, nullable=False)
-    active_containers = Column(Integer, nullable=False)
-    terminated_containers = Column(Integer, nullable=False)
-    terminating_containers = Column(Integer, nullable=False)
-    waiting_containers = Column(Integer, nullable=False)
-    running_containers = Column(Integer, nullable=False)
-    failed_pods = Column(Integer, nullable=False)
-    running_pods = Column(Integer, nullable=False)
-    pending_pods = Column(Integer, nullable=False)
-    succeeded_pods = Column(Integer, nullable=False)
-    users = Column(Integer, nullable=False)
-    projects = Column(Integer, nullable=False)
-    active_projects = Column(Integer, nullable=False)
-    terminating_projects = Column(Integer, nullable=False)
+    collection_date = Column(DateTime, nullable=False)
+    create_date = Column(DateTime)
+    end_date = Column(DateTime)
+    uid = Column(String(255), nullable=False, unique=True)
+    status = Column(Text())
+    meta = Column(Text())
+    cluster_id = Column(String(255), nullable=False)
+
+class Openshift3Pod(Base):
+    __tablename__ = 'openshift3_pod'
+
+    id = Column(Integer, primary_key=True)
+    collection_date = Column(DateTime, nullable=False)
+    create_date = Column(DateTime)
+    end_date = Column(DateTime)
+    uid = Column(String(255), nullable=False, unique=True)
+    spec = Column(Text())
+    status = Column(Text())
+    meta = Column(Text())
+    cluster_id = Column(String(255), nullable=False)
+
+class Openshift3Project(Base):
+    __tablename__ = 'openshift3_project'
+
+    id = Column(Integer, primary_key=True)
+    collection_date = Column(DateTime, nullable=False)
+    create_date = Column(DateTime)
+    end_date = Column(DateTime)
+    uid = Column(String(255), nullable=False, unique=True)
+    status = Column(Text())
+    meta = Column(Text())
+    cluster_id = Column(String(255), nullable=False)
+
+class Openshift3User(Base):
+    __tablename__ = 'openshift3_user'
+
+    id = Column(Integer, primary_key=True)
+    collection_date = Column(DateTime, nullable=False)
+    create_date = Column(DateTime)
+    end_date = Column(DateTime)
+    uid = Column(String(255), nullable=False, unique=True)
+    meta = Column(Text())
+    cluster_id = Column(String(255), nullable=False)
 
 class AwsAccountMetadata(Base):
     __tablename__ = 'aws_account_metadata'
