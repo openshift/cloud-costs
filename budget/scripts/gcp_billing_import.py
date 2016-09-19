@@ -55,14 +55,14 @@ def update_file_cache(settings):
 
     changed = []
     for obj in bucket.list_blobs():
-        filename = settings['cache.dir']+'/'+obj.name
+        filename = settings['cache.dir']+'/gcp/'+obj.name
         if not os.path.exists(filename) or \
                 filename not in etags or \
                 obj.etag != etags[filename]:
             obj.download_to_filename(filename)
             etags[filename] = obj.etag
             changed.append(os.path.basename(filename))
-    save_json(settings['cache.dir']+'/etags.json', etags)
+    save_json(settings['cache.dir']+'/gcp/etags.json', etags)
     return changed
 
 def filename_to_date(filename):
