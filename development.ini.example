@@ -17,11 +17,16 @@ pyramid.includes =
 
 sqlalchemy.url = mysql://root@localhost/pybudget
 
-# where we store S3 data
+# where we cache cloud data
 cache.dir = %(here)s/data
 
-# where we store AWS creds
+# where we cache cloud creds
 creds.dir = %(here)s/creds
+
+# GCP-specific creds info
+# See: https://developers.google.com/identity/protocols/application-default-credentials
+# creds.gcp.json = foo-ab123cd.json
+# creds.gcp.project = foo-project-123
 
 # By default, the toolbar only appears for clients from IP addresses
 # '127.0.0.1' and '::1'.

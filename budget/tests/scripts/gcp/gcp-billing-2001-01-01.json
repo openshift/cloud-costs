@@ -1,0 +1,19 @@
+[ {
+  "accountId" : "000000-111111-222222",
+  "lineItemId" : "com.google.cloud/tests/test-service/TestTest",
+  "description" : "TestTest",
+  "startTime" : "2001-01-01T00:00:00-07:00",
+  "endTime" : "2001-01-02T00:00:00-07:00",
+  "projectNumber" : "123456789012",
+  "projectId" : "test-project",
+  "projectName" : "test-project",
+  "measurements" : [ {
+    "measurementId" : "com.google.cloud/tests/test-service/TestTest",
+    "sum" : "86400",
+    "unit" : "seconds"
+  } ],
+  "cost" : {
+    "amount" : "1.234567",
+    "currency" : "USD"
+  }
+} ]
