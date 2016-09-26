@@ -22,9 +22,10 @@ locale.setlocale(locale.LC_ALL, "en_US")
 
 @view_config(route_name='stats_index', renderer='budget:templates/stats.pt')
 def stats_index(request):
-    return { 'graph' : None, 'selectors': {}, 'notes': '' }
+    return {'graph' : None, 'selectors': {}, 'notes': ''}
 
-@view_config(route_name='stats', match_param="graph=account", renderer='budget:templates/stats.pt')
+@view_config(route_name='stats', match_param="graph=account",
+             renderer='budget:templates/stats.pt')
 def cost_by_account(request):
     log.debug(request.params)
 
@@ -68,7 +69,8 @@ def cost_by_account(request):
              'notes' : ''
             }
 
-@view_config(route_name='stats', match_param="graph=activity", renderer='budget:templates/stats.pt')
+@view_config(route_name='stats', match_param="graph=activity",
+             renderer='budget:templates/stats.pt')
 def gear_activity_distribution(request):
     log.debug(request.params)
 
@@ -139,7 +141,8 @@ def gear_activity_distribution(request):
              'notes' : ''
             }
 
-@view_config(route_name='stats', match_param="graph=nodes", renderer='budget:templates/stats.pt')
+@view_config(route_name='stats', match_param="graph=nodes",
+             renderer='budget:templates/stats.pt')
 def node_distribution(request):
     log.debug(request.params)
 
@@ -185,7 +188,8 @@ def node_distribution(request):
              'notes' : ''
             }
 
-@view_config(route_name='stats', match_param="graph=v2gearcost", renderer='budget:templates/stats.pt')
+@view_config(route_name='stats', match_param="graph=v2gearcost",
+             renderer='budget:templates/stats.pt')
 def v2_gear_cost(request):
     log.debug(request.params)
 
@@ -312,7 +316,8 @@ def v2_gear_cost(request):
                 }
             }
 
-@view_config(route_name='stats', match_param="graph=totalcost", renderer='budget:templates/stats.pt')
+@view_config(route_name='stats', match_param="graph=totalcost",
+             renderer='budget:templates/stats.pt')
 def total_cost(request):
     log.debug(request.params)
 
@@ -404,61 +409,77 @@ def total_cost(request):
             'selectors' : {}
             }
 
-# %s - undocumented pass-through to system's strftime.
-#      need to multiply by 1000 to hit the right century.
-def epoch_date(d):
+def epoch_date(dat):
     ''' return the unix epoch date for dates after Y2K '''
-    return int(d.strftime('%s'))*1000
+    # %s - undocumented pass-through to system's strftime.
+    #      need to multiply by 1000 to hit the right century in Javascript.
+    return int(dat.strftime('%s'))*1000
 
-@view_config(route_name='stats', match_param="graph=gcpcost", renderer='budget:templates/stats.pt')
+@view_config(route_name='stats', match_param="graph=gcpcost",
+             renderer='budget:templates/stats.pt')
 def gcp_cost(request):
+    ''' render a graph of gcp costs.
+        see: budget/scripts/gcp_billing_import.py for data ingestion process
+    '''
     log.debug(request.params)
 
     graph_data = {}
-    seen_dates = []
+    seen_dates = set()
     projects = DBSession.query(GcpLineItem.project_name.distinct()).all()
-    for p, in projects:
-        project = str(p)
+    for prj, in projects:
+        project = str(prj)
 
         if project not in graph_data.keys():
-            graph_data[project] = []
+            graph_data[project] = set()
 
-        start_times = DBSession.query(
-                        GcpLineItem.start_time.distinct()
-                    ).filter(
-                        GcpLineItem.project_name == project,
-                        GcpLineItem.start_time >= last_year,
-                    ).all()
+        start_times = DBSession.query(GcpLineItem.start_time.distinct()
+                                     ).filter(\
+                                       GcpLineItem.project_name == project,
+                                       GcpLineItem.start_time >= last_year,
+                                             ).all()
 
         for start, in start_times:
-            if start not in seen_dates:
-                seen_dates.append(epoch_date(start))
+            # ignore hourly variations because we're displaying a daily view
+            day_begin = start.replace(hour=0, minute=0, second=0, tzinfo=None)
+            day_end = start.replace(hour=23, minute=59, second=59, tzinfo=None)
 
-            results = DBSession.query(func.sum(GcpLineItem.cost_amount)).filter(
-                    GcpLineItem.project_name == project,
-                    GcpLineItem.start_time == start,
-                ).all()
+            if day_begin not in seen_dates:
+                seen_dates.add(epoch_date(day_begin))
 
-            for r, in results:
-                data = [epoch_date(start), r]
-                graph_data[project].append(data)
+            results = DBSession.query(func.sum(GcpLineItem.cost_amount
+                                              )).filter(\
+                                    GcpLineItem.project_name == project,
+                                    GcpLineItem.start_time.between(day_begin,
+                                                                   day_end),
+                                                       ).all()
+
+            for rslt, in results:
+                data = (epoch_date(day_begin), rslt)
+                graph_data[project].add(data)
 
     # remove spurious key.
-    del(graph_data['None'])
+    del graph_data['None']
 
     # ensure that the length of the coordinate value arrays are all the same.
-    for k,v in graph_data.items():
-        for d in seen_dates:
-            if d not in [x for x,y in v]:
-                graph_data[k].append([d,0])
+    for key, val in graph_data.items():
+        for dat in seen_dates-set(coord[0] for coord in val):
+            graph_data[key].add((dat, 0))
 
     graph = StackedAreaChart(extra="""
     chart.xAxis.tickFormat(function(d) { return d3.time.format('%x')(new Date(d)) });
     chart.yAxis.tickFormat(d3.format('$,.4f'));
                                     """)
-    graph.data = [{'key':k,'values':sorted(v, key=lambda x: x[0])} for k,v in graph_data.items()]
 
-    return { 'graph' : graph,
+    # sets are used above instead of lists to maintain uniqueness of the time
+    # series data. however, now we need to convert the sets back to lists so
+    # that __repr__() correctly renders them into javascript-parsable
+    # representations. the time series is also sorted by date to aid client-side
+    # rendering.
+    graph.data = [{'key' : k,
+                   'values' : sorted([list(val) for val in v],
+                                     key=lambda x: x[0])
+                  } for k, v in graph_data.items()]
+
+    return {'graph' : graph,
             'notes' : '',
-            'selectors' : {}
-            }
+            'selectors' : {}}

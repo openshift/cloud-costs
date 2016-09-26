@@ -16,21 +16,16 @@ from oauth2client.client import GoogleCredentials
 from sqlalchemy import engine_from_config
 from sqlalchemy.sql import functions
 
-from pyramid.paster import (
-    get_appsettings,
-    )
+from pyramid.paster import get_appsettings
 
 from pyramid.scripts.common import parse_vars
 
-from ..models import (
-    DBSession,
-    Base,
-    GcpLineItem
-    )
+from ..models import (DBSession,
+                      GcpLineItem)
 
 from ..util.fileloader import load_json, save_json
 
-COMMIT_THRESHOLD = 100000
+COMMIT_THRESHOLD = 10000
 
 def usage(argv):
     ''' cli usage '''
@@ -42,7 +37,7 @@ def usage(argv):
 def update_file_cache(settings):
     ''' download JSON files from GCP Storage bucket, returns a list of the
     files that were downloaded/changed '''
-    etags = load_json(settings['cache.dir']+'/etags.json')
+    etags = load_json(settings['cache.dir']+'/gcp/etags.json')
 
     #FIXME
     os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = settings['creds.dir'] + \
@@ -53,12 +48,22 @@ def update_file_cache(settings):
                             credentials=credentials)
     bucket = client.get_bucket('exported-billing')
 
+    print "Checking for new/changed files."
     changed = []
     for obj in bucket.list_blobs():
         filename = settings['cache.dir']+'/gcp/'+obj.name
         if not os.path.exists(filename) or \
                 filename not in etags or \
                 obj.etag != etags[filename]:
+
+            try:
+                print "Etags for %s: %s == %s" % (obj.name,
+                                                  obj.etag,
+                                                  etags[filename])
+            except KeyError:
+                print "Etag missing: %s" % obj.name
+
+            print "Downloading: %s" % obj.name
             obj.download_to_filename(filename)
             etags[filename] = obj.etag
             changed.append(os.path.basename(filename))
@@ -80,16 +85,35 @@ def date_to_filename(filedate):
                                                 filedate.month,
                                                 filedate.day)
 
-def insert_data(filename, cache_dir):
+def insert_data(filename, cache_dir, rundate=None):
     ''' insert gcp data into DB
         param: String, a filename containing json-formatted GCP billing data
+        param: Datetime to insert only data points with a start or end date
+               matching the provided datetime's year, month, and day
+               (ignores hour, minute, second, and tzinfo).
     '''
     objects = []
     jsonfile = load_json(cache_dir+'/'+filename)
+    print "Inserting data from: %s" % filename
     for item in jsonfile:
         if len(objects) > COMMIT_THRESHOLD:
             transaction.commit()
             del objects[:]
+
+        if rundate:
+            # If the data points are on the same day, load 'em.
+            start = parse_date(item['startTime']).replace(hour=0,
+                                                          minute=0,
+                                                          second=0,
+                                                          tzinfo=None)
+            end = parse_date(item['endTime']).replace(hour=0,
+                                                      minute=0,
+                                                      second=0,
+                                                      tzinfo=None)
+            if start == rundate or end == rundate:
+                pass
+            else:
+                continue
 
         if 'projectName' in item.keys():
             project_name = item['projectName']
@@ -123,19 +147,39 @@ def run(settings, options):
         changed = update_file_cache(settings)
 
     if 'rundate' in options:
-        filename = date_to_filename(datetime.strptime(options['rundate'],
-                                                      '%Y-%m-%d'))
+        # GCP puts data for a given date inside of files labeled for
+        # $date, # $date - $1-day and $date + $1-day.
+        # So, we scan all three files for relevant data needing to be reset.
+
+        rundate = datetime.strptime(options['rundate'], '%Y-%m-%d')
+        runafter = rundate + relativedelta(days=1)
+        runbefore = rundate - relativedelta(days=1)
+        filename = date_to_filename(rundate)
+        filebefore = date_to_filename(runbefore)
+        fileafter = date_to_filename(runafter)
+
+        print "Deleting records with start-date: %s" % options['rundate']
+        # delete any existing records and re-ingest
+        DBSession.query(GcpLineItem
+                       ).filter(GcpLineItem.start_time == options['rundate']
+                               ).delete()
+        print "Deleting records with end-date: %s" % options['rundate']
         # delete any existing records and re-ingest
         DBSession.query(GcpLineItem
                        ).filter(GcpLineItem.end_time == options['rundate']
                                ).delete()
-        insert_data(filename, cache_dir)
+        insert_data(filebefore, cache_dir, rundate=rundate)
+        insert_data(filename, cache_dir, rundate=rundate)
+        insert_data(fileafter, cache_dir, rundate=rundate)
     else:
         # check last insert date, then do import here.
-        last_insert, = DBSession.query(functions.max(GcpLineItem.end_time)).one()
+        last_insert, = DBSession.query(functions.max(GcpLineItem.end_time
+                                                    )).one()
         if not last_insert:
             # only import the last 6 months of data, maximum.
             last_insert = datetime.today() - relativedelta(months=7)
+
+        print "Last insert: %s" % last_insert
 
         for filename in os.listdir(cache_dir):
             if filename == 'etags.json':
@@ -155,7 +199,7 @@ def run(settings, options):
             # clear out partial data, then re-insert
             DBSession.query(GcpLineItem
                            ).filter(GcpLineItem.start_time.between(fndate,
-                                                                  next_day),
+                                                                   next_day),
                                     GcpLineItem.end_time.between(fndate,
                                                                  next_day)
                                    ).delete(synchronize_session='fetch')
