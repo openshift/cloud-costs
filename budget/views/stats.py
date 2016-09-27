@@ -467,12 +467,12 @@ def gcp_cost(request):
 
     graph = StackedAreaChart(extra="""
     chart.xAxis.tickFormat(function(d) { return d3.time.format('%x')(new Date(d)) });
-    chart.yAxis.tickFormat(d3.format('$,.4f'));
-                                    """)
+    chart.yAxis.tickFormat(d3.format('$,.3f'));
+                                   """)
 
-    # sets are used above instead of lists to maintain uniqueness of the time
-    # series data. however, now we need to convert the sets back to lists so
-    # that __repr__() correctly renders them into javascript-parsable
+    # sets-of-tuples are used above instead of lists to maintain uniqueness of
+    # the time series data. however, now we need to convert the sets back to
+    # lists so that __repr__() correctly renders them into javascript-parsable
     # representations. the time series is also sorted by date to aid client-side
     # rendering.
     graph.data = [{'key' : k,
