@@ -57,6 +57,10 @@ def update(session, table, yml, yaml_info):
 
         if table != Openshift3User:
             status = item['status']
+            if 'images' in status.keys():
+                # the images list in lengthy and doesn't have much useful info
+                del status['images']
+
             defaults['status'] = yaml.dump(status)
 
         obj = insert_or_update(session, table, defaults=defaults, **kwargs)
@@ -77,23 +81,22 @@ def expire(session, table, uidlist):
     dbuids = session.query(table.uid.distinct()).all()
     dbuids = [u for u, in dbuids]
 
+    log.debug("XXX: %s" % len(dbuids))
     for uid in dbuids:
         if uid in uidlist:
             dbuids.remove(uid)
 
-    for uid in dbuids:
-        end, = session.query(table.end_date).filter( \
-                    table.uid == uid).one()
+    log.debug("YYY: %s" % len(dbuids))
+    #for uid in dbuids:
+    #    end, = session.query(table.end_date
+    #                        ).filter(table.uid == uid).one()
 
-        if not end:
-            defaults = {'end_date' : datetime.now()}
-            kwargs = {'uid' : uid}
-            obj = insert_or_update(DBSession,
-                                   Openshift3Node,
-                                   defaults=defaults,
-                                   **kwargs)
-            DBSession.merge(obj)
-    transaction.commit()
+    #    if not end:
+    #        obj = session.query(table
+    #                           ).filter(table.uid == uid
+    #                                   ).update({'end_date':datetime.now()})
+    #        session.merge(obj)
+    #transaction.commit()
 
 def select_latest():
     ''' examines filename for YYYY-MM-DD portion of filename, returns latest '''

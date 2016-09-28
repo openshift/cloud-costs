@@ -20,7 +20,6 @@ budget/scripts/aws_inventory_update.py
 budget/scripts/aws_pricing_data.py
 budget/scripts/gcp_billing_import.py
 budget/scripts/initializedb.py
-budget/scripts/openshift_stats.py
 budget/scripts/openshift_v3_stats.py
 budget/scripts/other_expenses.py
 budget/static/checkmark.png
@@ -29,6 +28,11 @@ budget/static/d3.js
 budget/static/d3.min.js
 budget/static/jquery-2.1.4.js
 budget/static/jquery-2.1.4.min.js
+budget/static/jquery.gridly.css
+budget/static/jquery.gridly.js
+budget/static/jquery.treetable.css
+budget/static/jquery.treetable.js
+budget/static/jquery.treetable.theme.default.css
 budget/static/mytheme.css
 budget/static/mytheme.min.css
 budget/static/nv.d3.css
@@ -39,6 +43,7 @@ budget/static/pyramid-16x16.png
 budget/static/pyramid.png
 budget/static/reservation.css
 budget/static/reservation.js
+budget/static/root.css
 budget/static/stats.css
 budget/static/theme.css
 budget/static/theme.min.css
@@ -613,8 +618,12 @@ budget/templates/reservation.pt
 budget/templates/root.pt
 budget/templates/stats.pt
 budget/templates/structure.pt
+budget/templates/widgets/aws_cost.pt
+budget/templates/widgets/graph.pt
 budget/tests/__init__.py
 budget/tests/test_renderers.py
+budget/tests/scripts/__init__.py
+budget/tests/scripts/test_openshift_v3_stats.py
 budget/tests/util/__init__.py
 budget/tests/util/test_addset.py
 budget/tests/util/test_fileloader.py
@@ -627,9 +636,14 @@ budget/tests/views/test_stats.py
 budget/util/__init__.py
 budget/util/addset.py
 budget/util/fileloader.py
+budget/util/tree.py
 budget/util/nvd3js/__init__.py
+budget/util/queries/__init__.py
+budget/util/queries/aws.py
+budget/util/queries/util.py
 budget/views/__init__.py
 budget/views/cost_allocation.py
 budget/views/reservation.py
 budget/views/root.py
 budget/views/stats.py
+budget/views/widgets.py

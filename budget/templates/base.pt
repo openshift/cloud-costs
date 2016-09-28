@@ -18,7 +18,8 @@
 
 	<div>
 		<div class='header'>
-				| <a class='header-link' href='/stats/account'>Cost By Account</a> |
+				| <a class='header-link' href='/'>Home</a> |
+				<a class='header-link' href='/stats/account'>Cost By Account</a> |
 				<a class='header-link' href='/stats/activity'>Gear Activity</a> |
 				<a class='header-link' href='/stats/nodes'>Node Distribution</a> |
 				<a class='header-link' href='/stats/v2gearcost'>Gear Cost</a> |

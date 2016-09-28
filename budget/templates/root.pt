@@ -27,10 +27,12 @@
 		<div class="brick large">
 				<div tal:replace="structure render_view('widget_gcp')"></div>
 		</div>
-		<div class="brick large">
+		<div class="brick tall">
 				<div tal:replace="structure render_view('widget_aws_cost')"></div>
 		</div>
-		<div class="brick small"></div>
+		<div class="brick tall">
+				<div tal:replace="structure render_view('widget_openshift_stats')"></div>
+		</div>
 		<div class="brick small"></div>
 		<div class="brick small"></div>
 		<div class="brick large"></div>

@@ -1,5 +1,5 @@
 <!-- requires: jquery, treetable -->
-<p>${title}</p>
+<p class='widget-title'>${title}</p>
 <div class='treetable'>
 		<table class='treetable'>
 				<tbody>

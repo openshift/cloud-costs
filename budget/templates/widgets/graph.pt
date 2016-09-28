@@ -2,7 +2,7 @@
 		js: d3, nvd3
 		css: d3, nvd3
 -->
-<p class='graph-title'>${title}</p>
+<p class='widget-title'>${title}</p>
 <div class='d3-chart-container' id='chart'>
 		<svg id='d3-svg'></svg>
 </div>

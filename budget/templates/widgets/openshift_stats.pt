@@ -1,0 +1,7 @@
+<p class='widget-title'>${title}</p>
+<div class='v3stats-div' tal:repeat='x data'>
+		<span class='v3stats-section'>${x}</span>
+		<div tal:repeat='y data[x]'>
+				<span class='v3stats-label'>${y}</span><span class='v3stats-value'>${data[x][y]}</span>
+		</div>
+</div>

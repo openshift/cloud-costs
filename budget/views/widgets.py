@@ -6,21 +6,23 @@ from pyramid.view import view_config, render_view_to_response
 from pyramid.events import subscriber, BeforeRender
 
 from sqlalchemy.exc import DBAPIError
-from sqlalchemy import not_, asc, distinct, func
+from sqlalchemy import not_, desc, asc, distinct, func
 
 from ..models import *
+from ..util.addset import addset
 from ..util.tree import Branch, Leaf
 from ..util.queries.aws import get_dates
 
+import collections
 import locale
 import logging
 import yaml
 
-from budget.util.nvd3js import *
+import budget.util.nvd3js as nvd3js
 
-log = logging.getLogger(__name__)
-last_year = datetime.now() - timedelta(days=365)
-last_month = datetime.now() - timedelta(days=30)
+LOG = logging.getLogger(__name__)
+LAST_YEAR = datetime.now() - timedelta(days=365)
+LAST_MONTH = datetime.now() - timedelta(days=30)
 locale.setlocale(locale.LC_ALL, "en_US")
 
 # from:
@@ -28,9 +30,12 @@ locale.setlocale(locale.LC_ALL, "en_US")
 @subscriber(BeforeRender)
 def add_render_view_global(event):
     ''' adds a global render_view callable '''
-    log.debug(event)
-    event['render_view'] = lambda name: render_view_to_response(event['context'],
-            event['request'], name=name, secure=True).ubody
+    LOG.debug(event)
+    event['render_view'] = lambda name: render_view_to_response(\
+                                            event['context'],
+                                            event['request'],
+                                            name=name,
+                                            secure=True).ubody
 
 def epoch_date(date):
     ''' return the unix epoch date for dates after Y2K '''
@@ -41,7 +46,7 @@ def epoch_date(date):
 @view_config(name='widget_gcp', renderer='budget:templates/widgets/graph.pt')
 def widget_gcp(request):
     ''' GCP cost graph widget '''
-    log.debug(request.params)
+    LOG.debug(request.params)
 
     graph_data = {}
     seen_dates = set()
@@ -55,7 +60,7 @@ def widget_gcp(request):
         start_times = DBSession.query(GcpLineItem.start_time.distinct()
                                      ).filter(\
                                        GcpLineItem.project_name == project,
-                                       GcpLineItem.start_time >= last_month,
+                                       GcpLineItem.start_time >= LAST_MONTH,
                                              ).all()
 
         for start, in start_times:
@@ -85,15 +90,15 @@ def widget_gcp(request):
         for dat in seen_dates-set(coord[0] for coord in val):
             graph_data[key].add((dat, 0))
 
-    graph = StackedAreaChart(showLegend=False,
-                             useInteractiveGuideline=False,
-                             showControls=False,
-                             margin={'top': 10,
-                                     'right': 10,
-                                     'bottom': 60,
-                                     'left': 50},
-                             showXAxis=False,
-                             extra="""
+    graph = nvd3js.StackedAreaChart(showLegend=False,
+                                    useInteractiveGuideline=False,
+                                    showControls=False,
+                                    margin={'top': 10,
+                                            'right': 10,
+                                            'bottom': 60,
+                                            'left': 50},
+                                    showXAxis=False,
+                                    extra="""
     chart.xAxis.tickFormat(function(d) { return d3.time.format('%x')(new Date(d)) });
     chart.yAxis.tickFormat(d3.format('$,.2f'));
             """)
@@ -110,20 +115,19 @@ def widget_gcp(request):
 
     return {'graph' : graph, 'title' : 'GCP Costs'}
 
-@view_config(name='widget_aws_cost', renderer='budget:templates/widgets/aws_cost.pt')
+@view_config(name='widget_aws_cost',
+             renderer='budget:templates/widgets/aws_cost.pt')
 def widget_aws_cost(request):
     ''' Produce a hierarchy of cost-categories to provide a high-level summary
         of spending while enabling a user to drill-into the billing details.
     '''
-    log.debug(request.params)
+    LOG.debug(request.params)
 
     dates, selected_date = get_dates(request.params)
 
-    results = DBSession.query(
-                AwsAccountMetadata.account_id,
-                AwsAccountMetadata.account_name,
-                AwsAccountMetadata.tags,
-            ).all()
+    results = DBSession.query(AwsAccountMetadata.account_id,
+                              AwsAccountMetadata.account_name,
+                              AwsAccountMetadata.tags).all()
 
     # create objects of accounts and tags to build our hierarchy from
     accounts = {}
@@ -163,7 +167,8 @@ def widget_aws_cost(request):
         root.append(tag_branch)
 
         # Account-level
-        for account in sorted(accounts, key=lambda x: accounts[x]['account_name']):
+        for account in sorted(accounts,
+                              key=lambda x: accounts[x]['account_name']):
             if tag not in accounts[account]['tags']:
                 continue
 
@@ -213,3 +218,112 @@ def widget_aws_cost(request):
 
     return {'data' : rendered, 'title' : 'AWS Cost Breakdown'}
 
+@view_config(name='widget_openshift_stats',
+             renderer='budget:templates/widgets/openshift_stats.pt')
+def widget_openshift_stats(request):
+    ''' show openshift deployment stats '''
+    node_count, = DBSession.query(func.count(Openshift3Node.id)).one()
+    cluster_count, = DBSession.query(func.count(\
+                                     distinct(\
+                                     Openshift3Node.cluster_id))).one()
+    top_projects = DBSession.query(Openshift3Project.cluster_id,
+                                   func.count(Openshift3Project.id)
+                                  ).order_by(desc(\
+                                            func.count(Openshift3Project.id)
+                                                 )).group_by(\
+                                                Openshift3Project.cluster_id
+                                                            ).limit(5)
+    top_users = DBSession.query(Openshift3User.cluster_id,
+                                func.count(Openshift3User.id)
+                               ).order_by(desc(\
+                                            func.count(Openshift3User.id)
+                                              )).group_by(\
+                                                    Openshift3User.cluster_id
+                                                         ).limit(5)
+    data = collections.OrderedDict(sorted(\
+                   {'Cluster Count' : {'Total':cluster_count},
+                    'Node Count'    : {'Total':node_count},
+                    'Top Project Counts' : collections.OrderedDict(sorted(\
+                                    {k:v for k, v in top_projects}.items(),
+                                    key=lambda x: x[1],
+                                    reverse=True)),
+                    'Top User Counts'    : collections.OrderedDict(sorted(\
+                                    {k:v for k, v in top_users}.items(),
+                                    key=lambda x: x[1],
+                                    reverse=True)),
+                    'Node Type'     : openshift3_nodes_by_type(),
+                    'Node Status'   : openshift3_nodes_by_status(),
+                    'Pod Status'    : openshift3_pods_by_status(),
+                    # Not sure we care...
+                    #'Container Status' : openshift3_containers_by_status(),
+                   }.items()))
+    LOG.debug(data)
+    return {'title':'OpenShift v3 Stats', 'data':data}
+
+def openshift3_nodes_by_type():
+    ''' displays openshift3 node stats by type '''
+    #FIXME: won't scale
+    nodes = DBSession.query(Openshift3Node.meta).all()
+    stats = {'unknown':0}
+    for node_meta, in nodes:
+        meta = yaml.safe_load(node_meta)
+        try:
+            kind = meta['labels']['type']
+            if kind in stats.keys():
+                stats[kind] += 1
+            else:
+                stats[kind] = 1
+        except KeyError:
+            LOG.error("Unknown node: %s", meta)
+            stats['unknown'] += 1
+    return collections.OrderedDict(sorted(stats.items()))
+
+def openshift3_nodes_by_status():
+    ''' displays openshift3 node stats by status '''
+    #FIXME: won't scale
+    nodes = DBSession.query(Openshift3Node.status).all()
+    stats = {}
+    for node_status, in nodes:
+        status = yaml.safe_load(node_status)
+        for condition in status['conditions']:
+            status = condition['type']+': '+condition['status']
+            if status in stats.keys():
+                stats[status] += 1
+            else:
+                stats[status] = 1
+    return collections.OrderedDict(sorted(stats.items()))
+
+def openshift3_pods_by_status():
+    ''' displays openshift3 pod stats by status '''
+    #FIXME: won't scale
+    pods = DBSession.query(Openshift3Pod.status).all()
+    stats = {}
+    for pod_status, in pods:
+        status = yaml.safe_load(pod_status)
+        if 'conditions' in status:
+            for condition in status['conditions']:
+                status = condition['type']+': '+condition['status']
+                addset(stats, status, 1)
+        else:
+            addset(stats, 'Phase: '+status['phase'], 1)
+    return collections.OrderedDict(sorted(stats.items()))
+
+def openshift3_containers_by_status():
+    ''' displays openshift3 pod stats by status '''
+    #FIXME: won't scale
+    pods = DBSession.query(Openshift3Pod.status).all()
+    stats = {}
+    for pod_status, in pods:
+        status = yaml.safe_load(pod_status)
+        if 'containerStatuses' in status:
+            for container_status in status['containerStatuses']:
+                # State should always be a single state, despite it being a dict
+                if len(container_status['state'].keys()) == 1:
+                    for state in container_status['state'].keys():
+                        addset(stats, state, 1)
+                else:
+                    LOG.error('Found more than one state for containerID: %s',
+                              container_status['containerID'])
+        else:
+            addset(stats, 'Phase: '+status['phase'], 1)
+    return collections.OrderedDict(sorted(stats.items()))
