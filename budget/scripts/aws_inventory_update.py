@@ -27,7 +27,8 @@ from ..util.fileloader import load_yaml
 from ..util.queries.util import insert_or_update
 
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
-CHECK_DATE = datetime.now().strftime(DATE_FORMAT)
+CHECK_DATE = datetime.now()
+CHECK_DATE_STR = CHECK_DATE.strftime(DATE_FORMAT)
 
 def usage():
     ''' how to call this program '''
@@ -60,7 +61,7 @@ def update_instance_inventory(ec2conn, account):
 
         obj = (AwsInstanceInventory,
                {'instance_id':inst.id},
-               {'check_date' : CHECK_DATE,
+               {'check_date' : CHECK_DATE_STR,
                 'name' : name,
                 'environment' : env,
                 'instance_type' : inst.instance_type,
@@ -101,9 +102,9 @@ def expire_instances():
         them on this pass, it means they are gone.
     '''
     DBSession.query(AwsInstanceInventory
-                   ).filter(AwsInstanceInventory.check_date != CHECK_DATE
+                   ).filter(AwsInstanceInventory.check_date != CHECK_DATE_STR
                            ).update({'status' : 'terminated',
-                                     'check_date' : CHECK_DATE})
+                                     'check_date' : CHECK_DATE_STR})
     transaction.commit()
 
 def prune_instances(threshold=365):
