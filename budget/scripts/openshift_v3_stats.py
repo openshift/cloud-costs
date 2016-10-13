@@ -4,16 +4,22 @@
 import logging
 import os
 import re
+import shutil
 import sys
 import tarfile
+import tempfile
 import transaction
 import yaml
 
 from datetime import datetime
+from multiprocessing import Pool, cpu_count
 
 import sqlalchemy.orm.exc
 
 from sqlalchemy import engine_from_config, distinct
+from sqlalchemy.orm import (scoped_session, sessionmaker)
+from sqlalchemy.exc import IntegrityError
+from zope.sqlalchemy import ZopeTransactionExtension
 
 from pyramid.paster import (get_appsettings,
                             setup_logging)
@@ -21,14 +27,12 @@ from pyramid.paster import (get_appsettings,
 from pyramid.scripts.common import parse_vars
 
 from budget.models import (DBSession,
-                           Base,
                            Openshift3Node,
                            Openshift3Pod,
                            Openshift3Project,
                            Openshift3User)
 
-from ..util.fileloader import load_yaml, save_yaml
-from ..util.addset import addset
+from ..util.fileloader import load_yaml
 from ..util.queries.util import insert_or_update
 
 def usage():
@@ -36,26 +40,39 @@ def usage():
     print "Usage: %s <config_uri> [statsfile-YYYY-MM-DD.tar.bz2]" % sys.argv[0]
     sys.exit()
 
-def update(session, table, yml, yaml_info):
+def read_stats(statspath, filename):
     ''' update node inventory based on supplied yaml
 
-        return a list of node uids
+        param: a directory
+        param: a yaml filename
+        return: an unholy mess
     '''
-    uidlist = []
+    log.info('processing %s.', filename)
+
+    uidlist = set()
+    rows = []
+
+    info = parse_filename(filename)
+    tablemap = {'nodes'    : Openshift3Node,
+                'pods'     : Openshift3Pod,
+                'projects' : Openshift3Project,
+                'users'    : Openshift3User}
+
+    yml = load_yaml(statspath+'/'+filename)
     for item in yml['items']:
         meta = item['metadata']
         uid = item['metadata']['uid']
-        uidlist.append(uid)
+        uidlist.add(uid)
 
-        defaults = {'collection_date' : yaml_info['collection_date'],
-                    'create_date' : item['metadata']['creationTimestamp'],
-                    'end_date' : None,
-                    'meta' : yaml.dump(meta)}
+        defaults = {'collection_date' : info['collection_date'],
+                    'create_date'     : item['metadata']['creationTimestamp'],
+                    'end_date'        : None,
+                    'cluster_id'      : info['cluster_id'],
+                    'meta'            : yaml.dump(meta)}
 
-        kwargs = {'uid' : uid,
-                  'cluster_id' : yaml_info['cluster_id']}
+        kwargs = {'uid' : uid}
 
-        if table != Openshift3User:
+        if tablemap[info['type']] != Openshift3User:
             status = item['status']
             if 'images' in status.keys():
                 # the images list in lengthy and doesn't have much useful info
@@ -63,40 +80,28 @@ def update(session, table, yml, yaml_info):
 
             defaults['status'] = yaml.dump(status)
 
-        obj = insert_or_update(session, table, defaults=defaults, **kwargs)
-        DBSession.merge(obj)
-    transaction.commit()
-    return uidlist
+        rows.append((tablemap[info['type']], defaults, kwargs))
+    return (uidlist, rows)
 
-def expire(session, table, uidlist):
+def expire(session, table, uidlist, expiredate):
     ''' any uids that aren't included in the current stats files is marked
         as terminated
-    '''
-# XXX: when we update inventory, we get a list of distinct uids. then, when we
-# parse the latest inventory files, if a uid isn't in our list, it's marked as
-# deleted. As an error-handling mechanism, if a uid exists in a future list, we
-# can compare region/sizing/IP and, if matches are found, we can null out the
-# end_date field.
 
+        Param: a sqlalchemy session object
+        Param: a sqlalchemy table class reference
+        Param: an iterable (set or list) containing uid strings
+    '''
     dbuids = session.query(table.uid.distinct()).all()
     dbuids = [u for u, in dbuids]
 
-    log.debug("XXX: %s" % len(dbuids))
-    for uid in dbuids:
-        if uid in uidlist:
-            dbuids.remove(uid)
+    diff = list(set(dbuids)-set(uidlist))
 
-    log.debug("YYY: %s" % len(dbuids))
-    #for uid in dbuids:
-    #    end, = session.query(table.end_date
-    #                        ).filter(table.uid == uid).one()
-
-    #    if not end:
-    #        obj = session.query(table
-    #                           ).filter(table.uid == uid
-    #                                   ).update({'end_date':datetime.now()})
-    #        session.merge(obj)
-    #transaction.commit()
+    for uid in diff:
+        obj = session.query(table
+                           ).filter(table.uid == uid,
+                                    table.end_date == None,
+                                   ).update({'end_date':expiredate})
+    transaction.commit()
 
 def select_latest():
     ''' examines filename for YYYY-MM-DD portion of filename, returns latest '''
@@ -115,11 +120,30 @@ def select_latest():
 
 def parse_filename(filename):
     ''' parse information from filename '''
-    rgx = re.compile(r'([a-zA-Z]+)-([\w\-]+)-master-(\w+)-(\d{4}-\d{2}-\d{2}).yaml')
+    rgx = re.compile(\
+            r'([a-zA-Z]+)-([\w\-]+)-master-(\w+)-(\d{4}-\d{2}-\d{2}).yaml')
     groups = rgx.search(filename).groups()
     return {'type' : groups[0],
             'cluster_id' : groups[1],
             'collection_date' : groups[3]}
+
+def extract_tarbz2(filename):
+    ''' extract a tarball to a temp dir.
+
+        param: filename.tar.bz2
+        returns: path string to a tempdir containing tarball contents
+    '''
+    tempdir = tempfile.mkdtemp()
+
+    log.info('extracting %s to %s ', filename, tempdir)
+
+    tar = tarfile.open(filename, 'r:bz2')
+    member_list = tar.getmembers()
+
+    for member in member_list:
+        tar.extract(member, path=tempdir)
+
+    return tempdir
 
 def main(args):
     ''' entry point '''
@@ -147,39 +171,68 @@ def main(args):
     global cache_dir
     cache_dir = settings['cache.dir'] + "/v3stats"
 
+    # global to enable us to handle KeyboardInterrupts without leaving zombies around.
+    global pool
+    pool = Pool(processes=cpu_count()*2)
+
+
     if not selected:
         selected = select_latest()
 
-    log.info('processing %s.', selected)
+    objects = []
+    pids = []
 
-    tar = tarfile.open(selected, 'r:bz2')
-    member_list = tar.getmembers()
-    # skip the directory entry in the tar file
-    member_list.pop(0)
+    stats_path = extract_tarbz2(selected)
+    for filename in os.listdir(stats_path+'/stats'):
+        try:
+            run = pool.apply_async(read_stats,
+                                   (stats_path+'/stats', filename),
+                                   callback=objects.append)
+            pids.append(run)
+        except Exception as exc:
+            print exc
+            log.debug(exc)
+            raise
 
+    # get the output of all our processes
+    for pid in pids:
+        pid.get()
+
+    # ensure the sqlalchemy objects aren't garbage-collected before we commit them.
+    # see: http://docs.sqlalchemy.org/en/latest/orm/session_state_management.html#session-referencing-behavior
+    merged = []
     uidlist = {}
-    typemap = {'nodes'    : Openshift3Node,
-               'pods'     : Openshift3Pod,
-               'projects' : Openshift3Project,
-               'users'    : Openshift3User}
+    for uids, arglist in objects:
+        for table, defaults, kwargs in arglist:
+            if table in uidlist.keys():
+                uidlist[table].update(uids)
+            else:
+                uidlist[table] = uids
+            obj = insert_or_update(DBSession, table, defaults=defaults, **kwargs)
+            merged.append(DBSession.merge(obj))
+    try:
+        transaction.commit()
+    except IntegrityError as exc:
+        DBSession.rollback()
+        log.error(exc)
 
-    for member in member_list:
-        log.info('processing %s.', member)
-        yml = load_yaml(tar.extractfile(member))
+    pool.close()
+    pool.join()
 
-        parsed_name = parse_filename(member.name.split('/')[-1])
-        if parsed_name['type'] not in uidlist:
-            uidlist[parsed_name['type']] = []
+    for table in uidlist:
+        rgx = re.compile(r'v3stats-(\d{4}-\d{2}-\d{2}).tar.bz2')
+        scandate, = rgx.search(selected).groups()
+        expire(DBSession,
+               table,
+               uidlist[table],
+               scandate)
 
-        uids = update(DBSession, typemap[parsed_name['type']], yml, parsed_name)
-        uidlist[parsed_name['type']].extend(uids)
-
-    for type_ in uidlist:
-        expire(DBSession, typemap[type_], uidlist[type_])
+    shutil.rmtree(stats_path)
 
 if '__main__' in __name__:
     try:
         main(sys.argv)
     except KeyboardInterrupt:
         print "Ctrl-C detected. Exiting."
+        pool.terminate()
         sys.exit()
