@@ -1,10 +1,8 @@
-cloud-costs README
-==================
+cloud-costs README ==================
 
 ![Travis CI](https://travis-ci.org/blentz/cloud-costs.svg?branch=master "Travis CI")
 [![Licensed under Apache License version
-2.0](https://img.shields.io/github/license/openshift/origin.svg?maxAge=2592000)](https://www.apache.org/licenses/LICENSE-2.0)
-
+2.0](https://img.shields.io/badge/license-Apache%202-blue.svg)](https://raw.githubusercontent.com/openshift/cloud-costs/master/LICENSE)
 This is a project using the Pyramid framework (http://www.pylonsproject.org/).
 
 The purpose is to develop a set of utilities and tools that provides meaningful
