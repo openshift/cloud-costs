@@ -38,9 +38,9 @@ def get_dates(params):
     else:
         selected_date = max(dates)
 
-    # munge selected_date to avoid presenting "dd/mm/yyyy 00:00:00" in the UI
-    if not isinstance(selected_date, str):
-        selected_date = selected_date.strftime("%Y-%m-%d")
+#    # munge selected_date to avoid presenting "dd/mm/yyyy 00:00:00" in the UI
+#    if not isinstance(selected_date, str):
+#        selected_date = selected_date.strftime("%Y-%m-%d")
 
     return (dates, selected_date)
 
