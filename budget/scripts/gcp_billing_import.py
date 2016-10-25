@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 ''' Script to ingest GCP billing data into a DB '''
 
+import logging
 import os
 import re
 import sys
@@ -16,7 +17,7 @@ from oauth2client.client import GoogleCredentials
 from sqlalchemy import engine_from_config
 from sqlalchemy.sql import functions
 
-from pyramid.paster import get_appsettings
+from pyramid.paster import get_appsettings, setup_logging
 
 from pyramid.scripts.common import parse_vars
 
@@ -25,6 +26,7 @@ from ..models import (DBSession,
 
 from ..util.fileloader import load_json, save_json
 
+LOG = logging.getLogger(__name__)
 COMMIT_THRESHOLD = 10000
 
 def usage(argv):
@@ -48,7 +50,7 @@ def update_file_cache(settings):
                             credentials=credentials)
     bucket = client.get_bucket('exported-billing')
 
-    print "Checking for new/changed files."
+    LOG.debug("Checking for new/changed files.")
     changed = []
     for obj in bucket.list_blobs():
         filename = settings['cache.dir']+'/gcp/'+obj.name
@@ -57,13 +59,14 @@ def update_file_cache(settings):
                 obj.etag != etags[filename]:
 
             try:
-                print "Etags for %s: %s == %s" % (obj.name,
-                                                  obj.etag,
-                                                  etags[filename])
+                LOG.debug("Etags for %s: %s == %s",
+                          obj.name,
+                          obj.etag,
+                          etags[filename])
             except KeyError:
-                print "Etag missing: %s" % obj.name
+                LOG.debug("Etag missing: %s", obj.name)
 
-            print "Downloading: %s" % obj.name
+            LOG.info("Downloading: %s", obj.name)
             obj.download_to_filename(filename)
             etags[filename] = obj.etag
             changed.append(os.path.basename(filename))
@@ -94,7 +97,7 @@ def insert_data(filename, cache_dir, rundate=None):
     '''
     objects = []
     jsonfile = load_json(cache_dir+'/'+filename)
-    print "Inserting data from: %s" % filename
+    LOG.debug("Inserting data from: %s", filename)
     for item in jsonfile:
         if len(objects) > COMMIT_THRESHOLD:
             transaction.commit()
@@ -158,12 +161,12 @@ def run(settings, options):
         filebefore = date_to_filename(runbefore)
         fileafter = date_to_filename(runafter)
 
-        print "Deleting records with start-date: %s" % options['rundate']
+        LOG.info("Deleting records with start-date: %s", options['rundate'])
         # delete any existing records and re-ingest
         DBSession.query(GcpLineItem
                        ).filter(GcpLineItem.start_time == options['rundate']
                                ).delete()
-        print "Deleting records with end-date: %s" % options['rundate']
+        LOG.info("Deleting records with end-date: %s", options['rundate'])
         # delete any existing records and re-ingest
         DBSession.query(GcpLineItem
                        ).filter(GcpLineItem.end_time == options['rundate']
@@ -179,7 +182,7 @@ def run(settings, options):
             # only import the last 6 months of data, maximum.
             last_insert = datetime.today() - relativedelta(months=7)
 
-        print "Last insert: %s" % last_insert
+        LOG.debug("Last insert: %s", last_insert)
 
         for filename in os.listdir(cache_dir):
             if filename == 'etags.json':
@@ -212,6 +215,8 @@ def main(argv):
 
     config_uri = argv[1]
     options = parse_vars(argv[2:])
+
+    setup_logging(config_uri)
 
     settings = get_appsettings(config_uri, options=options)
     engine = engine_from_config(settings, 'sqlalchemy.')
