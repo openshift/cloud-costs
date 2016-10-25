@@ -5,14 +5,12 @@ import yaml
 from datetime import datetime, timedelta
 from pyramid import testing
 
-from budget.models import (
-    Base,
-    DBSession,
-    Openshift3Node,
-    Openshift3Pod,
-    Openshift3Project,
-    Openshift3User
-    )
+from budget.models import (DBSession,
+                           Base,
+                           Openshift3Node,
+                           Openshift3Pod,
+                           Openshift3Project,
+                           Openshift3User)
 
 now = datetime.now()
 today = datetime(now.year, now.month, now.day, 0, 0, 0)
