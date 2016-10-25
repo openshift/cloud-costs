@@ -9,7 +9,7 @@ except ImportError:
 
 class CSVRenderer(object):
     ''' Render data as a CSV '''
-    def __init__(self, info):
+    def __init__(self, info=None):
         pass
 
     def __call__(self, value, system):
