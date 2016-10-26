@@ -1,16 +1,15 @@
+''' A view that tabulates AWS reserved instances against the inventory of
+    running instances.
+'''
+
 import boto
-import csv
-import dateutil.parser
 import json
 import locale
 import logging
 import re
-import os
-import sys
-import yaml
 
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal, getcontext
 
 from pyramid.response import Response
@@ -59,43 +58,49 @@ class DataHolder(object):
         for key, value in kwargs.items():
             setattr(self, key, value)
 
-@view_config(route_name='reservation', match_param='loc=list', renderer='budget:templates/reservation.pt')
+@view_config(route_name='reservation',
+             match_param='loc=list',
+             renderer='budget:templates/reservation.pt')
 def reservation(request):
-    # empty pass-through to facilitate loading the page while sourcing the real
-    # data through an ajax call.
+    ''' empty pass-through to facilitate loading the page while sourcing the
+        real data through an ajax call.
+    '''
     return {}
 
 @view_config(route_name='reservation', match_param='loc=csv', renderer='csv')
 def reservation_csv(request):
+    ''' Output reservation data as CSV '''
     log.debug(request.params)
 
     # override attributes of response
     filename = 'ri-report.csv'
     request.response.content_disposition = 'attachment;filename=' + filename
 
-    header = [ 'Zone', 'Type', 'Running', 'Reserved', 'Delta', 'Up Front' ]
+    header = ['Zone', 'Type', 'Running', 'Reserved', 'Delta', 'Up Front']
 
     rows = compile_data(request)
     rows = layout_data_for_csv(rows)
     log.debug(rows)
-    return { 'header': header, 'rows': rows }
+    return {'header': header, 'rows': rows}
 
-@view_config(route_name='reservation',  match_param='loc=data', renderer='json')
+@view_config(route_name='reservation', match_param='loc=data', renderer='json')
 def reservation_data(request):
+    ''' Deliver compiled data to the View as JSON. Called by AJAX query. '''
     log.debug(request.params)
 
     data = compile_data(request)
 
     # data formatted for jQuery DataTable
-    return {
-                'draw' : 1,
-                'recordsTotal' : len(data),
-                'recordsFiltered' : len(data),
-                'data' : layout_data_for_web(data)
-            }
+    return {'draw' : 1,
+            'recordsTotal' : len(data),
+            'recordsFiltered' : len(data),
+            'data' : layout_data_for_web(data)}
 
-@view_config(route_name='reservation',  match_param='loc=instances', renderer='json')
+@view_config(route_name='reservation',
+             match_param='loc=instances',
+             renderer='json')
 def reservation_instances(request):
+    ''' Deliver instance data to the View as JSON. Called by AJAX query. '''
     log.debug(request.params)
 
     creds_file = request.registry.settings['creds.dir'] + "/creds.yaml"
@@ -111,20 +116,26 @@ def reservation_instances(request):
         for i in inst:
             if i.availability_zone == az and i.instance_type == size:
                 data.append({'account' : account,
-                         'id' : i.instance_id,
-                        'name' : i.name,
-                        'env' : i.environment})
+                             'id' : i.instance_id,
+                             'name' : i.name,
+                             'env' : i.environment})
 
     # data formatted for jQuery DataTable
-    return {
-                'draw' : 1,
-                'recordsTotal' : len(data),
-                'recordsFiltered' : len(data),
-                'data' : data
-            }
+    return {'draw' : 1,
+            'recordsTotal' : len(data),
+            'recordsFiltered' : len(data),
+            'data' : data}
 
-@view_config(route_name='reservation',  match_param='loc=purchase', renderer='json')
+@view_config(route_name='reservation',
+             match_param='loc=purchase',
+             renderer='json')
 def reservation_purchase(request):
+    ''' Execute an RI purchase.
+
+        ****************************
+        IMPORTANT: THIS SPENDS MONEY
+        ****************************
+    '''
     log.debug(request.POST)
 
     data = request.POST
@@ -134,35 +145,39 @@ def reservation_purchase(request):
     access_key, secret_key = get_creds(account, request.registry.settings)
 
     ec2conn = boto.ec2.connect_to_region(region,
-                        aws_access_key_id=access_key,
-                        aws_secret_access_key=secret_key)
+                                         aws_access_key_id=access_key,
+                                         aws_secret_access_key=secret_key)
 
     offerings = get_reservation_offerings(ec2conn,
-                                        availability_zone=data['availability_zone'],
-                                        instance_type=data['instance_type'])
+                                          availability_zone=data['availability_zone'],
+                                          instance_type=data['instance_type'])
 
     if len(offerings) == 1:
         log.debug(offerings[0].describe())
-        # See: # https://github.com/boto/boto/blob/develop/boto/ec2/connection.py#3660
+        # See:
+        # https://github.com/boto/boto/blob/develop/boto/ec2/connection.py#3660
         #
         try:
-            reservation = offerings[0].purchase(instance_count=str(data['amount']), dry_run=PURCHASE_DRY_RUN)
-            log.debug(reservation)
-        except boto.exception.EC2ResponseError as e:
+            reserved = offerings[0].purchase(instance_count=str(data['amount']),
+                                             dry_run=PURCHASE_DRY_RUN)
+            log.debug(reserved)
+        except boto.exception.EC2ResponseError as exc:
             request.response.status = 500
-            log.error(e.message)
-            return { 'results' : 'FAIL', 'errors' : e.message }
-        return { 'results' : 'SUCCESS', 'errors' : None }
+            log.error(exc.message)
+            return {'results' : 'FAIL', 'errors' : exc.message}
+        return {'results' : 'SUCCESS', 'errors' : None}
     else:
         request.response.status = 500
-        log.error('reservation purchase failed: %s' % offerings)
-        return { 'results' : 'FAIL', 'errors' : offerings }
+        log.error('reservation purchase failed: %s', offerings)
+        return {'results' : 'FAIL', 'errors' : offerings}
 
-@view_config(route_name='reservation', match_param='loc=expiration-graph', renderer='budget:templates/structure.pt')
+@view_config(route_name='reservation',
+             match_param='loc=expiration-graph',
+             renderer='budget:templates/structure.pt')
 def reservation_expiration_graph(request):
+    ''' output an nvd3 graph to show rate of RI expiration '''
     log.debug(request.params)
 
-    expirations = None
     data = {}
 
     creds_file = request.registry.settings['creds.dir'] + "/creds.yaml"
@@ -172,43 +187,41 @@ def reservation_expiration_graph(request):
         num = get_account_number(account, request.registry.settings)
         res = get_reservations(num)
 
-        for r in res:
-            tup = (r.instance_type, r.availability_zone)
+        for rsrv in res:
+            tup = (rsrv.instance_type, rsrv.availability_zone)
 
             if tup not in data.keys():
-                dh = DataHolder(
-                            instance_type=r.instance_type,
-                            availability_zone=r.availability_zone,
-                            instances={},
-                            reservations={}
-                        )
-                data[tup] = dh
+                holder = DataHolder(instance_type=rsrv.instance_type,
+                                    availability_zone=rsrv.availability_zone,
+                                    instances={},
+                                    reservations={})
+                data[tup] = holder
             if account in data[tup].reservations.keys():
-                data[tup].reservations[account].append(r)
+                data[tup].reservations[account].append(rsrv)
             else:
-                data[tup].reservations[account] = [r]
+                data[tup].reservations[account] = [rsrv]
 
 
     g_data = {}
-    for tup, dh in data.items():
-        dh = get_expirations(dh)
+    for tup, holder in data.items():
+        holder = get_expirations(holder)
 
-        for ri in dh.ri_expirations[tup]:
-            addset(g_data, ri['end_date'], ri['count'])
+        for rsrv in holder.ri_expirations[tup]:
+            addset(g_data, rsrv['end_date'], rsrv['count'])
 
     if not data:
         log.info('no graph data')
-        return { 'data' : 'No graph to show' }
+        return {'data' : 'No graph to show'}
 
     graph_data = []
     for key in sorted(g_data.keys()):
-        graph_data.append({ 'label': key,
-                            'value': int(g_data[key])})
+        graph_data.append({'label': key,
+                           'value': int(g_data[key])})
 
-    graph = DiscreteBarChart(stagger_labels='true')
-    graph.data = [{ 'key' : 'reservations', 'values' : graph_data}]
+    graph = DiscreteBarChart(staggerLabels='true')
+    graph.data = [{'key' : 'reservations', 'values' : graph_data}]
 
-    return { 'data' : graph }
+    return {'data' : graph}
 
 #########################################################
 # Helper methods
@@ -224,34 +237,36 @@ def get_creds(account, settings):
     return (access_key, secret_key)
 
 def get_account_number(name, settings):
-    ''' quick helper function to return an account number when given an account name
+    ''' quick helper function to return an account number when given an account
+        name
     '''
     creds_file = settings['creds.dir'] + "/creds.yaml"
     return load_yaml(creds_file)[name]['account']
 
 def get_reservations(account):
     ''' fetch a list of active reservations from the DB '''
-    results = DBSession.query(AwsReservationInventory).filter(
-                    AwsReservationInventory.account == account,
-                    AwsReservationInventory.expiration_date >= datetime.now(),
-                    AwsReservationInventory.purchase_date <= datetime.now()
-                ).all()
+    results = DBSession.query(AwsReservationInventory).filter(\
+                AwsReservationInventory.account == account,
+                AwsReservationInventory.expiration_date >= datetime.now(),
+                AwsReservationInventory.purchase_date <= datetime.now()).all()
     return results
 
 def get_reservation_offerings(ec2conn,
-                            instance_type=None,
-                            availability_zone=None,
-                            product_description='Linux/UNIX (Amazon VPC)',
-                            offering_type='Partial Upfront',
-                            instance_tenancy='default',
-                            min_duration=0,
-                            max_duration=ONE_YEAR,
-                            filters={}):
+                              instance_type=None,
+                              availability_zone=None,
+                              product_description='Linux/UNIX (Amazon VPC)',
+                              offering_type='Partial Upfront',
+                              instance_tenancy='default',
+                              min_duration=0,
+                              max_duration=ONE_YEAR,
+                              filters=None):
     ''' fetch a list of reserved instance offerings from AWS '''
+    if not filters:
+        filters = {}
     results = []
 
     try:
-        results = ec2conn.get_all_reserved_instances_offerings(
+        results = ec2conn.get_all_reserved_instances_offerings(\
                         instance_type=instance_type,
                         availability_zone=availability_zone,
                         product_description=product_description,
@@ -259,19 +274,17 @@ def get_reservation_offerings(ec2conn,
                         instance_tenancy=instance_tenancy,
                         min_duration=min_duration,
                         max_duration=max_duration,
-                        filters=filters
-                    )
-    except boto.exception.EC2ResponseError as e:
-        log.error("Error communicating with AWS: %s\n\n" % e.message)
+                        filters=filters)
+    except boto.exception.EC2ResponseError as exc:
+        log.error("Error communicating with AWS: %s\n\n", exc.message)
 
     return results
 
 def get_instances(account):
     ''' fetch a list of running instances from the DB '''
-    results = DBSession.query(AwsInstanceInventory).filter(
+    results = DBSession.query(AwsInstanceInventory).filter(\
                     AwsInstanceInventory.status == 'running',
-                    AwsInstanceInventory.account == account,
-                ).all()
+                    AwsInstanceInventory.account == account).all()
     return results
 
 def calculate_reservation_stats(data_holder):
@@ -282,33 +295,33 @@ def calculate_reservation_stats(data_holder):
     running_instances = {}
     reserved_instances = {}
 
-    for account, inst_list in data_holder.instances.items():
+    for _, inst_list in data_holder.instances.items():
         for inst in inst_list:
-            az   = inst.availability_zone
+            zone = inst.availability_zone
             size = inst.instance_type
 
-            if (size,az) not in totals.keys():
-                totals[(size,az)] = defaultdict(lambda: 0)
+            if (size, zone) not in totals.keys():
+                totals[(size, zone)] = defaultdict(lambda: 0)
 
-            # do a count of each type/az combination
-            running_instances[(size,az)] = running_instances.get((size,az),0)+1
-            totals[(size,az)]['running'] = totals[(size,az)].get('running',0)+1
+            # do a count of each type/zone combination
+            running_instances[(size, zone)] = running_instances.get((size, zone), 0)+1
+            totals[(size, zone)]['running'] = totals[(size, zone)].get('running', 0)+1
 
-    for account, ri_list in data_holder.reservations.items():
-        for ri in ri_list:
-            az   = ri.availability_zone
-            size = ri.instance_type
+    for _, ri_list in data_holder.reservations.items():
+        for rsrv in ri_list:
+            zone = rsrv.availability_zone
+            size = rsrv.instance_type
 
-            if (size,az) not in totals.keys():
-                totals[(size,az)] = defaultdict(lambda: 0)
+            if (size, zone) not in totals.keys():
+                totals[(size, zone)] = defaultdict(lambda: 0)
 
-            reserved_instances[(size,az)] = reserved_instances.get((size,az),0)+ri.instance_count
-            totals[(size,az)]['reserved'] = totals[(size,az)].get('reserved',0)+ri.instance_count
+            reserved_instances[(size, zone)] = reserved_instances.get((size, zone), 0)+rsrv.instance_count
+            totals[(size, zone)]['reserved'] = totals[(size, zone)].get('reserved', 0)+rsrv.instance_count
 
-    # for each type/az combination, the diff will be
+    # for each type/zone combination, the diff will be
     # - postive if we have unused reservations
     # - negative if there are on-demand instances
-    diff = dict([(x,reserved_instances[x]-running_instances.get(x,0)) for x in reserved_instances])
+    diff = dict([(x, reserved_instances[x]-running_instances.get(x, 0)) for x in reserved_instances])
 
     # diff only has keys present in reserved_instances.
     # now we add the keys from running_instances
@@ -319,70 +332,76 @@ def calculate_reservation_stats(data_holder):
     data_holder.put(ri_delta=diff, ri_totals=totals)
     return data_holder
 
-def calculate_costs(request, data_holder, cache={}):
+def calculate_costs(request, data_holder, cache=None):
     ''' calculate the cost differences between On-Demand and Reserved Instance
         pricing.
 
         Each DataHolder has a list of instances and reservations that need to
         be calculated against. Each combination of instance-size and
-        availability-zone is considered individually, because prices differ based
-        on these two variables. As a result, an in-memory cache of size/AZ
+        availability-zone is considered individually, because prices differ
+        based on these two variables. As a result, an in-memory cache of size/AZ
         prices is built to reduce the number of DB queries required to
         calculate cost differences for all data in the data_holder.
     '''
     cost = {}
+    if not cache:
+        cache = {}
 
-    for (size,az) in data_holder.ri_totals:
-        if (size,az) not in cost:
-            cost[(size,az)] = {}
+    for (size, zone) in data_holder.ri_totals:
+        if (size, zone) not in cost:
+            cost[(size, zone)] = {}
 
-        delta = data_holder.ri_delta[(size,az)]
+        delta = data_holder.ri_delta[(size, zone)]
 
-        r_kwargs = { 'instance_type' : size,
-                        'region' : az[:-1],
-                        'pricing' : 'Reserved',
-                        'lease_contract_length' : '1yr',
-                        'purchase_option' : 'Partial Upfront' }
-        od_params = (size, az[:-1], 'On-Demand')
-        r_params = (size, az[:-1], 'Reserved')
+        r_kwargs = {'instance_type' : size,
+                    'region' : zone[:-1],
+                    'pricing' : 'Reserved',
+                    'lease_contract_length' : '1yr',
+                    'purchase_option' : 'Partial Upfront'}
+        od_params = (size, zone[:-1], 'On-Demand')
+        r_params = (size, zone[:-1], 'Reserved')
 
         if delta < 0:
             if r_params in cache.keys():
-                ri = cache[r_params]
+                rsrv = cache[r_params]
             else:
-                ri = get_price(request, **r_kwargs)
-                cache[r_params] = ri
-            cost[(size,az)]['up-front'] = ri['Quantity'] * -delta
+                rsrv = get_price(request, **r_kwargs)
+                cache[r_params] = rsrv
+            cost[(size, zone)]['up-front'] = rsrv['Quantity'] * -delta
         else:
-            cost[(size,az)]['up-front'] = 0
+            cost[(size, zone)]['up-front'] = 0
 
-        if data_holder.ri_delta[(size,az)] != 0:
+        if data_holder.ri_delta[(size, zone)] != 0:
             # calc savings of reserved over on-demand.
             if od_params in cache.keys():
                 od_price = cache[od_params]
             else:
-                od_price = get_price(request, instance_type=size, region=az[:-1])
+                od_price = get_price(request, instance_type=size, region=zone[:-1])
                 cache[od_params] = od_price
 
             if r_params in cache.keys():
-                ri_price = cache[r_params]
+                rsrv_price = cache[r_params]
             else:
-                ri_price = get_price(request, **r_kwargs)
-                cache[r_params] = ri_price
+                rsrv_price = get_price(request, **r_kwargs)
+                cache[r_params] = rsrv_price
 
             monthly_on_demand = od_price['Hrs'] * 24 * 30
-            monthly_ri_amortized = (ri_price['Hrs'] * 24 * 30) + \
-                                    (ri_price['Quantity'] / 12)
-            savings = (monthly_on_demand - monthly_ri_amortized) * -delta
-            cost[(size,az)]['savings'] = savings
+            monthly_rsrv_amortized = (rsrv_price['Hrs'] * 24 * 30) + \
+                                    (rsrv_price['Quantity'] / 12)
+            savings = (monthly_on_demand - monthly_rsrv_amortized) * -delta
+            cost[(size, zone)]['savings'] = savings
         else:
-            cost[(size,az)]['savings'] = 0
+            cost[(size, zone)]['savings'] = 0
 
     data_holder.put(ri_costs=cost)
     return (data_holder, cache)
 
-def get_price(request, instance_type='t1.micro', region='us-east-1', tenancy='Shared',
-        pricing='OnDemand', **kwargs):
+def get_price(request,
+              instance_type='t1.micro',
+              region='us-east-1',
+              tenancy='Shared',
+              pricing='OnDemand',
+              **kwargs):
     ''' Digs through a massive nest of json data to extract the on demand
         pricing for AWS instances.
 
@@ -405,21 +424,19 @@ def get_price(request, instance_type='t1.micro', region='us-east-1', tenancy='Sh
     '''
 
     region_name = region_lookup(request, region)
-    products = DBSession.query(
-                    AwsPrice.price_dimensions,
-                    AwsPrice.term_attributes
-              ).filter(
+    products = DBSession.query(AwsPrice.price_dimensions,
+                               AwsPrice.term_attributes
+                              ).filter(\
                     AwsProduct.instance_type == instance_type,
                     AwsProduct.location == region_name,
                     AwsProduct.tenancy == tenancy,
                     AwsProduct.operating_system == 'Linux',
-                    AwsPrice.sku == AwsProduct.sku
-              ).all()
+                    AwsPrice.sku == AwsProduct.sku).all()
 
     costs = {}
-    for (d, t) in products:
-        price_dimensions = json.loads(d)
-        term_attributes = json.loads(t)
+    for (dim, term) in products:
+        price_dimensions = json.loads(dim)
+        term_attributes = json.loads(term)
 
         if pricing == 'OnDemand':
             rgx = re.compile(r'On Demand Linux %s' % instance_type)
@@ -467,9 +484,9 @@ def region_lookup(request, region='us-east-1'):
     cache_dir = request.registry.settings['cache.dir']
     ec2_region_map = load_json(cache_dir+"/aws_pricing/ec2_region_map.json")
 
-    for x in ec2_region_map:
-        if x['region'] == region:
-            return x['region_name']
+    for reg in ec2_region_map:
+        if reg['region'] == region:
+            return reg['region_name']
     return None
 
 def get_expirations(data_holder):
@@ -479,17 +496,16 @@ def get_expirations(data_holder):
 
     data = defaultdict(lambda: [])
     for account, ri_list in data_holder.reservations.items():
-        for reservation in ri_list:
-            az = reservation.availability_zone
-            size = reservation.instance_type
+        for rsrv in ri_list:
+            zone = rsrv.availability_zone
+            size = rsrv.instance_type
 
-            data_dict = {
-                    'account' : account,
-                    'end_date' : reservation.expiration_date.strftime("%Y-%m-%d"),
-                    'count' : reservation.instance_count,
-                    'days_left' : (reservation.expiration_date - datetime.now()).days
-                    }
-            data[(size,az)].append(data_dict)
+            data_dict = {'account' : account,
+                         'end_date' : rsrv.expiration_date.strftime("%Y-%m-%d"),
+                         'count' : rsrv.instance_count,
+                         'days_left' : (rsrv.expiration_date - datetime.now()
+                                       ).days}
+            data[(size, zone)].append(data_dict)
     data_holder.put(ri_expirations=data)
     return data_holder
 
@@ -500,17 +516,17 @@ def layout_data_for_web(data):
     # Expiration Details | AZ | Type | Running | Reserved | Delta | Up-Front | Savings
     table_rows = []
 
-    for tup, dh in data.items():
-        row = {
-                'zone' : tup[1],
-                'type' : tup[0],
-                'running' : dh.ri_totals[tup]['running'],
-                'reserved' : dh.ri_totals[tup]['reserved'],
-                'delta' : dh.ri_delta[tup],
-                'upfront' : locale.currency(dh.ri_costs[tup]['up-front'], grouping=True),
-                'savings' : locale.currency(dh.ri_costs[tup]['savings'], grouping=True),
-                'expiration' : dh.ri_expirations[tup],
-            }
+    for tup, holder in data.items():
+        row = {'zone' : tup[1],
+               'type' : tup[0],
+               'running' : holder.ri_totals[tup]['running'],
+               'reserved' : holder.ri_totals[tup]['reserved'],
+               'delta' : holder.ri_delta[tup],
+               'upfront' : locale.currency(holder.ri_costs[tup]['up-front'],
+                                           grouping=True),
+               'savings' : locale.currency(holder.ri_costs[tup]['savings'],
+                                           grouping=True),
+               'expiration' : holder.ri_expirations[tup]}
         table_rows.append(row)
     return table_rows
 
@@ -521,15 +537,13 @@ def layout_data_for_csv(data):
     #  AZ | Type | Running | Reserved | Delta | Up-Front
     table_rows = []
 
-    for tup, dh in data.items():
-        row = [
-                tup[1], # zone
-                tup[0], # type
-                dh.ri_totals[tup]['running'], # running
-                dh.ri_totals[tup]['reserved'], # reserved
-                dh.ri_delta[tup], # delta
-                dh.ri_costs[tup]['up-front'], # up-front
-            ]
+    for tup, holder in data.items():
+        row = [tup[1], # zone
+               tup[0], # type
+               holder.ri_totals[tup]['running'], # running
+               holder.ri_totals[tup]['reserved'], # reserved
+               holder.ri_delta[tup], # delta
+               holder.ri_costs[tup]['up-front']] # up-front
         table_rows.append(row)
     return table_rows
 
@@ -551,41 +565,37 @@ def compile_data(request):
             tup = (i.instance_type, i.availability_zone)
 
             if tup not in data.keys():
-                dh = DataHolder(
-                            instance_type=i.instance_type,
-                            availability_zone=i.availability_zone,
-                            instances={},
-                            reservations={}
-                        )
-                data[tup] = dh
+                holder = DataHolder(instance_type=i.instance_type,
+                                    availability_zone=i.availability_zone,
+                                    instances={},
+                                    reservations={})
+                data[tup] = holder
 
             if account in data[tup].instances.keys():
                 data[tup].instances[account].append(i)
             else:
                 data[tup].instances[account] = [i]
 
-        for r in res:
-            tup = (r.instance_type, r.availability_zone)
+        for rsrv in res:
+            tup = (rsrv.instance_type, rsrv.availability_zone)
 
             if tup not in data.keys():
-                dh = DataHolder(
-                            instance_type=r.instance_type,
-                            availability_zone=r.availability_zone,
-                            instances={},
-                            reservations={}
-                        )
-                data[tup] = dh
+                holder = DataHolder(instance_type=rsrv.instance_type,
+                                    availability_zone=rsrv.availability_zone,
+                                    instances={},
+                                    reservations={})
+                data[tup] = holder
             if account in data[tup].reservations.keys():
-                data[tup].reservations[account].append(r)
+                data[tup].reservations[account].append(rsrv)
             else:
-                data[tup].reservations[account] = [r]
+                data[tup].reservations[account] = [rsrv]
 
     query_cache = {}
-    for tup, dh in data.items():
-        dh = calculate_reservation_stats(dh)
-        dh, query_cache = calculate_costs(request, dh, query_cache)
-        dh = get_expirations(dh)
-        data[tup] = dh
+    for tup, holder in data.items():
+        holder = calculate_reservation_stats(holder)
+        holder, query_cache = calculate_costs(request, holder, query_cache)
+        holder = get_expirations(holder)
+        data[tup] = holder
 
     return data
 
