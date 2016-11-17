@@ -288,7 +288,7 @@ def get_instances(account):
     return results
 
 def calculate_reservation_stats(data_holder):
-    ''' caclculate the differences between running and reserved instances.
+    ''' calculate the differences between running and reserved instances.
         reports on totals and deltas by returning an updated DataHolder object.
     '''
     totals = {}

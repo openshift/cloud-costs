@@ -162,8 +162,8 @@ class TestGetReservationOfferings(unittest.TestCase):
         ec2conn = boto.ec2.connect_to_region('us-east-1')
         try:
             result = get_reservation_offerings(ec2conn,
-                                            instance_type='m27.superhuge',
-                                            availability_zone='us-east-1')
+                                               instance_type='m27.superhuge',
+                                               availability_zone='us-east-1')
         except NotImplementedError:
             #FIXME
             result = 'fake success. not a real success.'
