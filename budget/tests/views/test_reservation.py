@@ -16,7 +16,7 @@ from budget.models import (
     )
 
 now = datetime.now()
-today = datetime(now.year,now.month,now.day,0,0,0)
+today = datetime(now.year, now.month, now.day, 0, 0, 0)
 yesterday = today - timedelta(days=1)
 tomorrow = today + timedelta(days=1)
 
@@ -158,10 +158,13 @@ class TestGetReservationOfferings(unittest.TestCase):
     @mock_ec2
     def runTest(self):
         from budget.views.reservation import get_reservation_offerings
-        import boto
-        ec2conn = boto.ec2.connect_to_region('us-east-1')
+        import boto3
+        ec2 = boto3.client('ec2',
+                           'us-east-1',
+                           aws_access_key_id='1234567890',
+                           aws_secret_access_key='abcdefghijklmno')
         try:
-            result = get_reservation_offerings(ec2conn,
+            result = get_reservation_offerings(ec2,
                                                instance_type='m27.superhuge',
                                                availability_zone='us-east-1')
         except NotImplementedError:

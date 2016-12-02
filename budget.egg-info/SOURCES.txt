@@ -620,9 +620,11 @@ budget/templates/stats.pt
 budget/templates/structure.pt
 budget/templates/widgets/aws_cost.pt
 budget/templates/widgets/graph.pt
+budget/templates/widgets/openshift_stats.pt
 budget/tests/__init__.py
 budget/tests/test_renderers.py
 budget/tests/scripts/__init__.py
+budget/tests/scripts/test_gcp_billing_import.py
 budget/tests/scripts/test_openshift_v3_stats.py
 budget/tests/util/__init__.py
 budget/tests/util/test_addset.py

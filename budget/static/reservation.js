@@ -28,7 +28,7 @@ $(document).ready(function() {
                     'data' : 'running',
                     'className' : 'running-count',
                     'render' : function (data, type, full, meta) {
-                        return '<a href="#" class="running-count-link">'+data+'</a>';
+                        return '<a href="#" class="runningCountLink">'+data+'</a>';
                     }
                 },
                 { 'data' : 'reserved', 'className' : 'reservation-count' },
@@ -39,7 +39,7 @@ $(document).ready(function() {
                     'data' : null,
                     'className' : 'purchase-control',
                     'orderable' : false,
-                    'defaultContent' : '<p class="purchase-button">Purchase</p>'
+                    'defaultContent' : '<p class="purchaseButton">Purchase</p>'
                 },
             ],
             "order": [[5, 'asc']],
@@ -172,7 +172,7 @@ $(document).ready(function() {
             var az = row.children("td.availability-zone").text();
             var size = row.children("td.instance-type").text();
 
-            var tbl = '<table class="instances-table"></table>';
+            var tbl = '<table class="instancesTable"></table>';
             $("#dialog").html(tbl)
                 .children('table.instances-table')
                 .DataTable({
@@ -227,12 +227,50 @@ $(document).ready(function() {
             var delta = Math.abs(Number(row.children("td.delta-col").text()));
 
             console.log()
-            var tbl = '<form class="purchase-form" method="post">' +
-                        'Account: ' + '<input type="text" name="account" value="openshift-v2-prod"><br>' +
-                        'Availability Zone: ' + '<input type="text" name="availability_zone" value="'+az+'"><br>' +
-                        'Instance Type: ' + '<input type="text" name="instance_type" value="'+size+'"><br>' +
-                        'Amount: ' + '<input type="text" name="amount" value="'+delta+'"><br>' +
-                        '<button type="button" onclick="ajaxPurchase()">Purchase</button>' +
+            var tbl = '<form class="purchaseForm" method="post">' +
+                        '<div class="purchaseForm">'+
+                            'Account: ' + '<input class="purchaseForm" type="text" name="account" value="openshift-v2-prod">'+
+                        '</div>' +
+                        '<div class="purchaseForm">'+
+                            'Platform: ' + '<input class="purchaseForm" type="text" name="platform" value="Linux/UNIX (Amazon VPC)">' +
+                        '</div>' +
+                        '<div class="purchaseForm">'+
+                            'Region: ' + '<input class="purchaseForm" type="text" name="region" value="'+az.slice(0,az.length-1)+'">' +
+                        '</div>' +
+                        '<div class="purchaseForm">'+
+                            'Availability Zone: ' + '<input class="purchaseForm" type="text" name="availability_zone">' +
+                        '</div>' +
+                        '<div class="purchaseForm">'+
+                            'Instance Type: ' + '<input class="purchaseForm" type="text" name="instance_type" value="'+size+'"> ' +
+                        '</div>' +
+                        '<div class="purchaseForm">'+
+                            'Offering Class: ' + '<select class="purchaseForm" name="offering_class">'+
+                                '<option selected="1">convertible</option>' +
+                                '<option>standard</option>' +
+                            '</select>' +
+                        '</div>' +
+                        '<div class="purchaseForm">'+
+                            'Payment Option: ' + '<select class="purchaseForm" name="payment_option">'+
+                                '<option selected="1">Partial Upfront</option>' +
+                                '<option>No Upfront</option>' +
+                                '<option>All Upfront</option>' +
+                                '<option>Light Utilization</option>' +
+                                '<option>Medium Utilization</option>' +
+                            '</select> ' +
+                        '</div>' +
+                        '<div class="purchaseForm">'+
+                            'Duration: ' + '<select class="purchaseForm" name="max_duration">'+
+                                '<option selected="1" value="31536000">0-12 months</option>' +
+                                '<option value="94608000">13-36 months</option>' +
+                            '</select><br>' +
+                        '</div>' +
+                        '<div class="purchaseForm">'+
+                            'Amount: ' + '<input class="purchaseForm" type="text" name="amount" value="'+delta+'"><br>' +
+                        '</div>' +
+                        '<div class="purchaseForm">'+
+                            '<button id="searchButton" name="searchButton" type="button" onclick="ajaxOfferingSearch()">Search</button>' +
+                            '<button id="purchaseButton" name="purchaseButton" type="button" onclick="ajaxOfferingPurchase()" disabled=1>Purchase</button>' +
+                        '</div>' +
                       '</form>';
             $("#dialog").html(tbl)
 
@@ -246,14 +284,14 @@ $(document).ready(function() {
     /* Formatting function for row details */
     function format_details (d) {
         // `d` is the original data object for the row
-        var tbl = '<table class="details-table">'+
+        var tbl = '<table class="detailsTable">'+
                     '<thead>'+
-                    '<tr class="details-row">';
+                    '<tr class="detailsRow">';
         if (d.expiration.length > 0) {
-            tbl += '<td class="details-col">Account</td>'+
-                    '<td class="details-col">RI Count</td>'+
-                    '<td class="details-col">RI Days Left</td>'+
-                    '<td class="details-col">RI End Date</td>'+
+            tbl += '<td class="detailsCol">Account</td>'+
+                    '<td class="detailsCol">RI Count</td>'+
+                    '<td class="detailsCol">RI Days Left</td>'+
+                    '<td class="detailsCol">RI End Date</td>'+
                     '</tr>'+
                     '</thead>'+
                     '<tbody>';
@@ -262,15 +300,15 @@ $(document).ready(function() {
                                 return Number(a.days_left) - Number(b.days_left);
                             })
             ) {
-                tbl += '<tr class="details-row">'+
-                        '<td class="details-col">'+d.expiration[el].account+'</td>'+
-                        '<td class="details-col">'+d.expiration[el].count+'</td>'+
-                        '<td class="details-col">'+d.expiration[el].days_left+'</td>'+
-                        '<td class="details-col">'+d.expiration[el].end_date+'</td>'+
+                tbl += '<tr class="detailsRow">'+
+                        '<td class="detailsCol">'+d.expiration[el].account+'</td>'+
+                        '<td class="detailsCol">'+d.expiration[el].count+'</td>'+
+                        '<td class="detailsCol">'+d.expiration[el].days_left+'</td>'+
+                        '<td class="detailsCol">'+d.expiration[el].end_date+'</td>'+
                         '</tr>';
             }
         } else {
-            tbl += '<td class="details-col">No reservation details to display</td>'+
+            tbl += '<td class="detailsCol">No reservation details to display</td>'+
                 '</tr>'+
                 '</thead>'+
                 '<tbody>';
@@ -286,7 +324,83 @@ $(function() {
     $( document ).tooltip();
 });
 
-function ajaxPurchase() {
+function ajaxOfferingSearch() {
+    $("div#offeringSearchResults").remove();
+
+    $.ajax({
+        type : 'POST',
+        url : 'search_offerings',
+        dataType : 'json',
+        encode : true,
+        data : {
+            'account' : $('input[name=account]').val(),
+            'platform' :  $('input[name=platform]').val(),
+            'region' :  $('input[name=region]').val(),
+            'availability_zone' :  $('input[name=availability_zone]').val(),
+            'instance_type' : $('input[name=instance_type]').val(),
+            'offering_class' : $('select[name=offering_class]').val(),
+            'payment_option' : $('select[name=payment_option]').val(),
+            'amount' : $('input[name=amount]').val(),
+            'max_duration' : $('select[name=max_duration]').val(),
+            'min_duration' : $('select[name=max_duration]').val() == 94608000 ? 31536001 : 0 ,
+        },
+        success: function(data) {
+            //console.log(data);
+            var searchResults = '<div id="offeringSearchResults">'
+
+            var offerings = data['offerings'];
+            if (offerings.length > 0) {
+                searchResults += '<div class="offeringSearch">'+
+                                    '<span class="offeringSearch">Availability Zone</span>'+
+                                    '<span class="offeringSearch">Scope</span>'+
+                                    '<span class="offeringSearch">Duration</span>'+
+                                    '<span class="offeringSearch">Up Front</span>'+
+                                    '<span class="offeringSearch">Metered Rate</span>'+
+                                    '</div>';
+                for (i=0; i<offerings.length; i++) {
+                    searchResults += '<div class="offeringSearch">'+
+                                        '<span class="offeringSearch">'+offerings[i]['AvailabilityZone']+'</span>'+
+                                        '<span class="offeringSearch">'+offerings[i]['Scope']+'</span>'+
+                                        '<span class="offeringSearch">'+(offerings[i]['Duration']/24/60/60)+' days</span>';
+                    if (offerings[i]['CurrencyCode'] == 'USD') {
+                        searchResults += '<span class="offeringSearch">$ '+offerings[i]['FixedPrice']+'</span>';
+                    } else {
+                        searchResults += '<span class="offeringSearch">'+offerings[i]['FixedPrice']+
+                                                                    ' '+offerings[i]['CurrencyCode']+'</span>';
+                    }
+                    if (offerings[i]['RecurringCharges'].length > 0) {
+                        if (offerings[i]['CurrencyCode'] == 'USD') {
+                            searchResults += '<span class="offeringSearch">$ '+offerings[i]['RecurringCharges'][0]['Amount']+
+                                        ' '+offerings[i]['RecurringCharges'][0]['Frequency']+'</span>';
+                        } else {
+                            searchResults += '<span class="offeringSearch">'+offerings[i]['RecurringCharges'][0]['Amount']+
+                                        ' '+offerings[i]['CurrencyCode']+
+                                        ' '+offerings[i]['RecurringCharges'][0]['Frequency']+'</span>';
+                        }
+                    } else {
+                        searchResults += '<span class="offeringSearch">$0.00</span>';
+                    };
+                    searchResults += '</div>';
+                };
+            };
+            searchResults += '<p>'+data['offerings'].length+' Offerings Found.</p>';
+            searchResults += '</div>';
+
+            $("#dialog").dialog().append(searchResults);
+
+            if (data['offerings'].length > 0) {
+                $('#purchaseButton').removeAttr('disabled');
+            } else {
+                $('#purchaseButton').attr('disabled', '1');
+            };
+        },
+        error: function(data) {
+            $("#dialog").dialog().html('<pre>'+data['responseText']+'</pre>');
+        },
+    });
+}
+
+function ajaxOfferingPurchase() {
     $.ajax({
         type : 'POST',
         url : 'purchase',
@@ -294,16 +408,20 @@ function ajaxPurchase() {
         encode : true,
         data : {
             'account' : $('input[name=account]').val(),
+            'platform' :  $('input[name=platform]').val(),
+            'region' :  $('input[name=region]').val(),
             'availability_zone' :  $('input[name=availability_zone]').val(),
             'instance_type' : $('input[name=instance_type]').val(),
+            'offering_class' : $('select[name=offering_class]').val(),
+            'payment_option' : $('select[name=payment_option]').val(),
             'amount' : $('input[name=amount]').val(),
+            'max_duration' : $('select[name=max_duration]').val(),
+            'min_duration' : $('select[name=max_duration]').val() == 94608000 ? 31536001 : 0 ,
         },
         success: function(data) {
-            console.log(data);
             $("#dialog").dialog("close");
         },
         error: function(data) {
-            console.log(data);
             $("#dialog").dialog().html('<pre>'+data['responseText']+'</pre>');
         },
     });

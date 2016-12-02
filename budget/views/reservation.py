@@ -2,7 +2,7 @@
     running instances.
 '''
 
-import boto
+import boto3
 import json
 import locale
 import logging
@@ -106,7 +106,7 @@ def reservation_instances(request):
     creds_file = request.registry.settings['creds.dir'] + "/creds.yaml"
     accounts = sorted(load_yaml(creds_file).keys())
 
-    az = request.POST['availability-zone']
+    zone = request.POST['availability-zone']
     size = request.POST['instance-type']
 
     data = []
@@ -114,7 +114,7 @@ def reservation_instances(request):
         num = get_account_number(account, request.registry.settings)
         inst = get_instances(num)
         for i in inst:
-            if i.availability_zone == az and i.instance_type == size:
+            if i.availability_zone == zone and i.instance_type == size:
                 data.append({'account' : account,
                              'id' : i.instance_id,
                              'name' : i.name,
@@ -125,6 +125,40 @@ def reservation_instances(request):
             'recordsTotal' : len(data),
             'recordsFiltered' : len(data),
             'data' : data}
+
+@view_config(route_name='reservation',
+             match_param='loc=search_offerings',
+             renderer='json')
+def reservation_search(request):
+    ''' search for reservation offerings using the supplied POST params '''
+    log.debug(request.POST)
+    data = request.POST
+    account = data['account']
+    region = data['region']
+    access_key, secret_key = get_creds(account, request.registry.settings)
+
+    ec2 = boto3.client('ec2',
+                       region,
+                       aws_access_key_id=access_key,
+                       aws_secret_access_key=secret_key)
+
+    response = {}
+    try:
+        offerings = get_reservation_offerings(ec2,\
+                                availability_zone=data['availability_zone'],\
+                                instance_type=data['instance_type'],\
+                                product_description=[data['platform']],\
+                                offering_type=data['payment_option'],\
+                                offering_class=data['offering_class'],\
+                                min_duration=int(data['min_duration']),\
+                                max_duration=int(data['max_duration']))
+        log.debug(offerings)
+        response = {'offerings':offerings}
+    except boto3.exceptions.Boto3Error as exc:
+        log.error("Error communicating with AWS: %s\n\n", exc.message)
+        response = {'errors':exc.message}
+
+    return response
 
 @view_config(route_name='reservation',
              match_param='loc=purchase',
@@ -140,17 +174,19 @@ def reservation_purchase(request):
 
     data = request.POST
     account = data['account']
-    region = data['availability_zone'][:-1]
+    region = data['region']
 
     access_key, secret_key = get_creds(account, request.registry.settings)
 
-    ec2conn = boto.ec2.connect_to_region(region,
-                                         aws_access_key_id=access_key,
-                                         aws_secret_access_key=secret_key)
+    ec2 = boto3.client('ec2',
+                       region,
+                       aws_access_key_id=access_key,
+                       aws_secret_access_key=secret_key)
 
-    offerings = get_reservation_offerings(ec2conn,
-                                          availability_zone=data['availability_zone'],
-                                          instance_type=data['instance_type'])
+    offerings = get_reservation_offerings(ec2,\
+                                availability_zone=data['availability_zone'],\
+                                instance_type=data['instance_type'],\
+                                filters={'offeringClass':'convertible'})
 
     if len(offerings) == 1:
         log.debug(offerings[0].describe())
@@ -161,7 +197,7 @@ def reservation_purchase(request):
             reserved = offerings[0].purchase(instance_count=str(data['amount']),
                                              dry_run=PURCHASE_DRY_RUN)
             log.debug(reserved)
-        except boto.exception.EC2ResponseError as exc:
+        except boto3.exceptions.Boto3Error as exc:
             request.response.status = 500
             log.error(exc.message)
             return {'results' : 'FAIL', 'errors' : exc.message}
@@ -251,34 +287,32 @@ def get_reservations(account):
                 AwsReservationInventory.purchase_date <= datetime.now()).all()
     return results
 
-def get_reservation_offerings(ec2conn,
+def get_reservation_offerings(ec2client,
                               instance_type=None,
                               availability_zone=None,
-                              product_description='Linux/UNIX (Amazon VPC)',
+                              product_description=['Linux/UNIX (Amazon VPC)'],
                               offering_type='Partial Upfront',
+                              offering_class='convertible',
                               instance_tenancy='default',
                               min_duration=0,
                               max_duration=ONE_YEAR,
                               filters=None):
     ''' fetch a list of reserved instance offerings from AWS '''
     if not filters:
-        filters = {}
-    results = []
+        filters = []
+    filters.append({'Name':'product-description', 'Values':product_description})
+    kwargs = {'InstanceType':instance_type,
+              'OfferingType':offering_type,
+              'OfferingClass':offering_class,
+              'InstanceTenancy':instance_tenancy,
+              'MinDuration':min_duration,
+              'MaxDuration':max_duration,
+              'Filters':filters}
+    if availability_zone:
+        kwargs['AvailabilityZone'] = availability_zone
 
-    try:
-        results = ec2conn.get_all_reserved_instances_offerings(\
-                        instance_type=instance_type,
-                        availability_zone=availability_zone,
-                        product_description=product_description,
-                        offering_type=offering_type,
-                        instance_tenancy=instance_tenancy,
-                        min_duration=min_duration,
-                        max_duration=max_duration,
-                        filters=filters)
-    except boto.exception.EC2ResponseError as exc:
-        log.error("Error communicating with AWS: %s\n\n", exc.message)
-
-    return results
+    results = ec2client.describe_reserved_instances_offerings(**kwargs)
+    return results['ReservedInstancesOfferings']
 
 def get_instances(account):
     ''' fetch a list of running instances from the DB '''

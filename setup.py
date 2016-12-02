@@ -9,6 +9,7 @@ with open(os.path.join(here, 'README.md')) as f:
 
 requires = [
     'boto',
+    'boto3',
     'cov-core',
     'fa.jquery',
     'gcloud',
