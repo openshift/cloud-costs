@@ -390,8 +390,10 @@ function ajaxOfferingSearch() {
 
             if (data['offerings'].length > 0) {
                 $('#purchaseButton').removeAttr('disabled');
+                $('#searchButton').attr('disabled', '1');
             } else {
                 $('#purchaseButton').attr('disabled', '1');
+                $('#searchButton').removeAttr('disabled');
             };
         },
         error: function(data) {
