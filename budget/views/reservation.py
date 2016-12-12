@@ -2,6 +2,7 @@
     running instances.
 '''
 
+import botocore.exceptions
 import boto3
 import json
 import locale
@@ -175,6 +176,7 @@ def reservation_purchase(request):
     data = request.POST
     account = data['account']
     region = data['region']
+    instance_count = int(data['instance_count'])
 
     access_key, secret_key = get_creds(account, request.registry.settings)
 
@@ -183,21 +185,27 @@ def reservation_purchase(request):
                        aws_access_key_id=access_key,
                        aws_secret_access_key=secret_key)
 
-    offerings = get_reservation_offerings(ec2,\
-                                availability_zone=data['availability_zone'],\
-                                instance_type=data['instance_type'],\
-                                filters={'offeringClass':'convertible'})
+    # This is a somewhat redundant second Describe query.
+    # My thinking is that it ensures we have a valid ReservedInstanceOfferingId
+    # because we pass the id received from the client to a Describe call first,
+    # rather than jumping straight to the Purchase call.
+    kwargs = {'ReservedInstancesOfferingIds' : [data['reservation_id']]}
+    response = ec2.describe_reserved_instances_offerings(**kwargs)
+    offerings = response['ReservedInstancesOfferings']
+    log.debug(offerings)
 
     if len(offerings) == 1:
-        log.debug(offerings[0].describe())
-        # See:
-        # https://github.com/boto/boto/blob/develop/boto/ec2/connection.py#3660
-        #
+        log.info('PURCHASING %s RESERVED INSTANCES: %s',
+                 instance_count,
+                 offerings[0]['ReservedInstancesOfferingId'])
         try:
-            reserved = offerings[0].purchase(instance_count=str(data['amount']),
-                                             dry_run=PURCHASE_DRY_RUN)
+            kwargs = {'ReservedInstancesOfferingId' : offerings[0]['ReservedInstancesOfferingId'],
+                      'InstanceCount' : instance_count,
+                      'DryRun' : PURCHASE_DRY_RUN
+                     }
+            reserved = ec2.purchase_reserved_instances_offering(**kwargs)
             log.debug(reserved)
-        except boto3.exceptions.Boto3Error as exc:
+        except botocore.exceptions.ClientError as exc:
             request.response.status = 500
             log.error(exc.message)
             return {'results' : 'FAIL', 'errors' : exc.message}

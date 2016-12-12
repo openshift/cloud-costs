@@ -16,8 +16,9 @@ import logging
 from budget.util.nvd3js import *
 
 log = logging.getLogger(__name__)
-last_year = datetime.now() - timedelta(days=365)
-last_month = datetime.now() - timedelta(days=30)
+LAST_YEAR = datetime.now() - timedelta(days=365)
+LAST_SIX_MONTHS = datetime.now() - timedelta(days=180)
+LAST_MONTH = datetime.now() - timedelta(days=30)
 locale.setlocale(locale.LC_ALL, "en_US")
 
 @view_config(route_name='stats_index', renderer='budget:templates/stats.pt')
@@ -37,7 +38,7 @@ def cost_by_account(request):
             ).filter(
                 AwsInvoiceLineItem.linked_account_id != None,
                 AwsInvoiceLineItem.linked_account_id == AwsAccountMetadata.account_id,
-                AwsInvoiceLineItem.usage_start_date >= last_year,
+                AwsInvoiceLineItem.usage_start_date >= LAST_YEAR,
             ).all()
 
     dates = sorted(set([ item[3] for item in data ]))
@@ -77,7 +78,7 @@ def gear_activity_distribution(request):
     dates = DBSession.query(
                 OpenshiftProfileStats.collection_date.distinct()
             ).filter(
-                OpenshiftProfileStats.collection_date >= last_year,
+                OpenshiftProfileStats.collection_date >= LAST_YEAR,
             ).all()
     dates = sorted(set([ item[0] for item in dates ]))
 
@@ -149,7 +150,7 @@ def node_distribution(request):
     dates = DBSession.query(
                 OpenshiftProfileStats.collection_date.distinct()
             ).filter(
-                OpenshiftProfileStats.collection_date >= last_year,
+                OpenshiftProfileStats.collection_date >= LAST_YEAR,
             ).all()
     dates = sorted(set([ item[0] for item in dates ]))
 
@@ -215,7 +216,7 @@ def v2_gear_cost(request):
     dates = DBSession.query(
                 OpenshiftProfileStats.collection_date.distinct()
             ).filter(
-                OpenshiftProfileStats.collection_date >= last_year,
+                OpenshiftProfileStats.collection_date >= LAST_YEAR,
             ).all()
     dates = sorted(set([ item[0] for item in dates ]))
 
@@ -330,13 +331,13 @@ def total_cost(request):
                 AwsCostAllocation.credits,
             ).filter(
                 AwsCostAllocation.record_type == 'InvoiceTotal',
-                AwsCostAllocation.billing_period_start_date >= last_year,
+                AwsCostAllocation.billing_period_start_date >= LAST_YEAR,
             ).order_by(
                 asc(AwsCostAllocation.billing_period_start_date)
             ).all()
 
     other_expenses = DBSession.query(ExpensedCost).filter(
-                ExpensedCost.invoice_date >= last_year
+                ExpensedCost.invoice_date >= LAST_YEAR
             ).order_by(
                 asc(ExpensedCost.invoice_date)
             ).all()
@@ -376,7 +377,7 @@ def total_cost(request):
     vendors = DBSession.query(
                     distinct(ExpensedCost.vendor)
             ).filter(
-                    ExpensedCost.invoice_date >= last_year
+                    ExpensedCost.invoice_date >= LAST_YEAR
             ).all()
     vendors = [x[0] for x in vendors]
 
@@ -434,8 +435,8 @@ def gcp_cost(request):
 
         start_times = DBSession.query(GcpLineItem.start_time.distinct()
                                      ).filter(\
-                                       GcpLineItem.project_name == project,
-                                       GcpLineItem.start_time >= last_year,
+                                    GcpLineItem.project_name == project,
+                                    GcpLineItem.start_time >= LAST_SIX_MONTHS,
                                              ).all()
 
         for start, in start_times:

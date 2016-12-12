@@ -86,6 +86,9 @@ padding: 0 0 0 0;
 
 div#offeringSearchResults {
 margin: 10px 0 0 0;
+display: table;
+table-layout: fixed;
+width: 550px;
 }
 
 span.offeringSearch {
@@ -120,4 +123,11 @@ padding: 2px 0 0 3px;
 select.purchaseForm {
 width: 200px;
 padding: 2px 0 0 3px;
+}
+
+.offeringSearchRadio {
+margin: 0 0 0 0;
+padding: 0 0 0 0;
+display: table-cell;
+width: 20px;
 }

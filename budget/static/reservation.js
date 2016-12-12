@@ -269,7 +269,6 @@ $(document).ready(function() {
                         '</div>' +
                         '<div class="purchaseForm">'+
                             '<button id="searchButton" name="searchButton" type="button" onclick="ajaxOfferingSearch()">Search</button>' +
-                            '<button id="purchaseButton" name="purchaseButton" type="button" onclick="ajaxOfferingPurchase()" disabled=1>Purchase</button>' +
                         '</div>' +
                       '</form>';
             $("#dialog").html(tbl)
@@ -345,12 +344,14 @@ function ajaxOfferingSearch() {
             'min_duration' : $('select[name=max_duration]').val() == 94608000 ? 31536001 : 0 ,
         },
         success: function(data) {
-            //console.log(data);
-            var searchResults = '<div id="offeringSearchResults">'
+            var searchResults = '<form class="confirmForm" method="post">' +
+                                '<div id="offeringSearchResults">'+
+                                '<p>'+data['offerings'].length+' Offerings Found.</p>';
 
             var offerings = data['offerings'];
             if (offerings.length > 0) {
                 searchResults += '<div class="offeringSearch">'+
+                                    '<span class="offeringSearchRadio"></span>'+
                                     '<span class="offeringSearch">Availability Zone</span>'+
                                     '<span class="offeringSearch">Scope</span>'+
                                     '<span class="offeringSearch">Duration</span>'+
@@ -359,6 +360,9 @@ function ajaxOfferingSearch() {
                                     '</div>';
                 for (i=0; i<offerings.length; i++) {
                     searchResults += '<div class="offeringSearch">'+
+                                        '<span class="offeringSearchRadio">'+
+                                            '<input type="radio" name="reservation_id" value="'+offerings[i]['ReservedInstancesOfferingId']+'">'+
+                                        '</span>'+
                                         '<span class="offeringSearch">'+offerings[i]['AvailabilityZone']+'</span>'+
                                         '<span class="offeringSearch">'+offerings[i]['Scope']+'</span>'+
                                         '<span class="offeringSearch">'+(offerings[i]['Duration']/24/60/60)+' days</span>';
@@ -383,8 +387,10 @@ function ajaxOfferingSearch() {
                     searchResults += '</div>';
                 };
             };
-            searchResults += '<p>'+data['offerings'].length+' Offerings Found.</p>';
-            searchResults += '</div>';
+            searchResults += '<div class="offeringSearch">'+
+                                '<button id="purchaseButton" name="purchaseButton" type="button" onclick="ajaxOfferingPurchase()" disabled=1>Purchase</button>' +
+                             '</div>';
+            searchResults += '</div></form>';
 
             $("#dialog").dialog().append(searchResults);
 
@@ -410,20 +416,15 @@ function ajaxOfferingPurchase() {
         encode : true,
         data : {
             'account' : $('input[name=account]').val(),
-            'platform' :  $('input[name=platform]').val(),
-            'region' :  $('input[name=region]').val(),
-            'availability_zone' :  $('input[name=availability_zone]').val(),
-            'instance_type' : $('input[name=instance_type]').val(),
-            'offering_class' : $('select[name=offering_class]').val(),
-            'payment_option' : $('select[name=payment_option]').val(),
-            'amount' : $('input[name=amount]').val(),
-            'max_duration' : $('select[name=max_duration]').val(),
-            'min_duration' : $('select[name=max_duration]').val() == 94608000 ? 31536001 : 0 ,
+            'region' : $('input[name=region]').val(),
+            'instance_count' : $('input[name=amount]').val(),
+            'reservation_id' :  $('input[name=reservation_id]').val(),
         },
         success: function(data) {
             $("#dialog").dialog("close");
         },
         error: function(data) {
+            //TODO: pretty up the error output
             $("#dialog").dialog().html('<pre>'+data['responseText']+'</pre>');
         },
     });
