@@ -82,8 +82,8 @@ def retrieve_files(bucket):
 
             try:
                 key.get_contents_to_filename(cache_dir+'/'+key.name)
-            except e:
-                log.error(key.name+": "+e.message)
+            except Exception as exc:
+                log.error(key.name+": "+exc.message)
     save_json(checksum_filename, chksum_file)
 
 
