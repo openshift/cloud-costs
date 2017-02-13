@@ -68,10 +68,10 @@ def check_etags(filename, etag):
 
     if filename in etag_file.keys():
         if etag == etag_file[filename]:
-            log.debug('etags match!')
+            log.debug('%s: etags match!', filename)
             return True
 
-    log.debug('etags do NOT match!')
+    log.debug('%s: etags do NOT match!', filename)
     etag_file[filename] = etag
     save_json(cache_dir+"etags.json", etag_file)
     return False
