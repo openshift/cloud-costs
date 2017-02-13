@@ -239,11 +239,12 @@ class AwsReservationInventory(Base):
     id = Column(Integer, primary_key=True)
     reservation_id = Column(String(64), nullable=False, unique=True)
     instance_type = Column(String(64), nullable=False)
-    availability_zone = Column(String(64), nullable=False)
+    availability_zone = Column(String(64))
     account = Column(BigInteger, nullable=False)
     purchase_date = Column(DateTime, nullable=False)
     expiration_date = Column(DateTime, nullable=False)
     instance_count = Column(Integer, nullable=False)
+    scope = Column(String(32), nullable=True)
 
 Index('product_idx1', AwsDetailedLineItem.product_name, unique=True)
 Index('start_date_idx1', AwsDetailedLineItem.usage_start_date, unique=True)

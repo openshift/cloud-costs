@@ -1,10 +1,14 @@
 #!/usr/bin/env python
 ''' update the inventory of aws instances and reservations '''
 
-import boto.ec2
 import logging
+import ssl
 import sys
 import transaction
+import traceback
+
+import botocore.exceptions
+import boto3
 
 from datetime import datetime, timedelta
 from dateutil import parser as date_parser
@@ -35,66 +39,88 @@ def usage():
     print "Usage: %s <config_uri>" % sys.argv[0]
     sys.exit()
 
-def update_instance_inventory(ec2conn, account):
+def update_instance_inventory(region, access_key, secret_key, account):
     ''' update inventory of instances '''
     instances = []
     try:
-        instances = ec2conn.get_only_instances()
-    except boto.exception.EC2ResponseError as exc:
+        ec2conn = get_ec2_client(region, access_key, secret_key)
+        response = ec2conn.describe_instances()
+    except boto3.exceptions.Boto3Error as exc:
         log.error("Error communicating with AWS: %s\n\n", exc.message)
-        return
-    except SSLError  as exc:
-        log.error("Error communicating with AWS: %s\n\n", exc.message)
-        return
+        return []
+    except ssl.SSLError  as exc:
+        log.error("SSL Error when communicating with AWS: %s\n\n", exc.message)
+        return []
+
+    if len(response['Reservations']) == 0:
+        return []
+
+    instances = []
+    for res in response['Reservations']:
+        instances.extend(res['Instances'])
 
     objects = []
-    for inst in instances:
-        if 'Name' in inst.tags:
-            name = inst.tags['Name']
-        else:
+    try:
+        for inst in instances:
             name = 'No Name'
-
-        if 'environment' in inst.tags:
-            env = inst.tags['environment']
-        else:
             env = 'No Environment'
+            for dic in inst.get('Tags', None):
+                if dic['Key'] == 'Name':
+                    name = dic['Value']
+                if dic['Key'] == 'environment':
+                    env = dic['Value']
 
-        obj = (AwsInstanceInventory,
-               {'instance_id':inst.id},
-               {'check_date' : CHECK_DATE_STR,
-                'name' : name,
-                'environment' : env,
-                'instance_type' : inst.instance_type,
-                'availability_zone' : inst.placement,
-                'account' : get_account_number(account),
-                'status' : inst.state,
-                'launch_date' : date_parser.parse(inst.launch_time
-                                                 ).strftime(DATE_FORMAT)})
-        objects.append(obj)
+            obj = (AwsInstanceInventory,
+                   {'instance_id': inst['InstanceId']},
+                   {'check_date' : CHECK_DATE_STR,
+                    'name' : name,
+                    'environment' : env,
+                    'instance_type' : inst['InstanceType'],
+                    'availability_zone' : inst['Placement']['AvailabilityZone'],
+                    'account' : get_account_number(account),
+                    'status' : inst['State']['Name'],
+                    'launch_date' : inst['LaunchTime'].replace(tzinfo=None),
+                   })
+            objects.append(obj)
+    except Exception:
+        traceback.print_exc()
+        raise
     return objects
 
-def update_reservation_inventory(ec2conn, account):
-    ''' update inventory of reserved instances '''
-    reservations = []
+def update_reservation_inventory(region, access_key, secret_key, account):
+    ''' return an inventory of reserved instances for the given region in the
+        given account
+    '''
     try:
-        reservations = ec2conn.get_all_reserved_instances()
-    except boto.exception.EC2ResponseError as exc:
+        ec2conn = get_ec2_client(region, access_key, secret_key)
+        response = ec2conn.describe_reserved_instances()
+    except boto3.exceptions.Boto3Error as exc:
         log.error("Error communicating with AWS: %s\n\n", exc.message)
-        return
+        return []
+    except ssl.SSLError  as exc:
+        log.error("SSL Error when communicating with AWS: %s\n\n", exc.message)
+        return []
+
+    if len(response['ReservedInstances']) == 0:
+        return []
 
     objects = []
-    for rsrv in reservations:
-        obj = (AwsReservationInventory,
-               {'reservation_id':rsrv.id},
-               {'instance_type' : rsrv.instance_type,
-                'availability_zone' : rsrv.availability_zone,
-                'account' : get_account_number(account),
-                'purchase_date' : date_parser.parse(rsrv.start
-                                                   ).strftime(DATE_FORMAT),
-                'expiration_date' : date_parser.parse(rsrv.end
-                                                     ).strftime(DATE_FORMAT),
-                'instance_count' : rsrv.instance_count})
-        objects.append(obj)
+    try:
+        for rsrv in response['ReservedInstances']:
+            obj = (AwsReservationInventory,
+                   {'reservation_id': rsrv['ReservedInstancesId']},
+                   {'instance_type' : rsrv['InstanceType'],
+                    'availability_zone' : rsrv.get('AvailabilityZone', None),
+                    'account' : get_account_number(account),
+                    'purchase_date' : rsrv['Start'].replace(tzinfo=None),
+                    'expiration_date' : rsrv['End'].replace(tzinfo=None),
+                    'scope' : rsrv['Scope'],
+                    'instance_count' : rsrv['InstanceCount'],
+                   })
+            objects.append(obj)
+    except Exception:
+        traceback.print_exc()
+        raise
     return objects
 
 def expire_instances():
@@ -143,6 +169,14 @@ def get_account_number(name):
     ''' read AWS account numbers from file '''
     return load_yaml(creds_file)[name]['account']
 
+def get_ec2_client(region, access_key, secret_key):
+    ''' return an ec2 client object '''
+    cli = boto3.client('ec2',
+                       region_name=region,
+                       aws_access_key_id=access_key,
+                       aws_secret_access_key=secret_key)
+    return cli
+
 def main():
     ''' main method '''
     if len(sys.argv) < 2:
@@ -173,23 +207,19 @@ def main():
 
     for account in get_accounts():
         access_key, secret_key = get_creds(account)
-        regions = boto.ec2.regions()
 
+        regions = boto3.session.Session().get_available_regions('ec2')
         for region in regions:
             # skip restricted access regions
-            if region.name in ['us-gov-west-1', 'cn-north-1']:
+            if region in ['us-gov-west-2', 'cn-north-1']:
                 continue
 
-            log.debug('checking %s: %s', account, region.name)
-            ec2 = boto.ec2.connect_to_region(region.name,
-                                             aws_access_key_id=access_key,
-                                             aws_secret_access_key=secret_key)
-
+            log.debug('checking %s: %s', account, region)
             run1 = pool.apply_async(update_instance_inventory,
-                                    (ec2, account),
+                                    (region, access_key, secret_key, account),
                                     callback=objects.extend)
             run2 = pool.apply_async(update_reservation_inventory,
-                                    (ec2, account),
+                                    (region, access_key, secret_key, account),
                                     callback=objects.extend)
 
             pids.append(run1)

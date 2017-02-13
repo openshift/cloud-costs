@@ -619,6 +619,7 @@ def compile_data(request):
                 data[tup].instances[account] = [i]
 
         for rsrv in res:
+            #XXX: need to account for region-scoped RIs
             tup = (rsrv.instance_type, rsrv.availability_zone)
 
             if tup not in data.keys():
