@@ -64,7 +64,7 @@ def update_instance_inventory(region, access_key, secret_key, account):
         for inst in instances:
             name = 'No Name'
             env = 'No Environment'
-            for dic in inst.get('Tags', None):
+            for dic in inst.get('Tags', {}):
                 if dic['Key'] == 'Name':
                     name = dic['Value']
                 if dic['Key'] == 'environment':
