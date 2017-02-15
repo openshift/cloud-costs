@@ -35,12 +35,13 @@
           <thead>
               <tr>
                   <th></th>
+                  <th>Account</th>
                   <th>AZ</th>
                   <th>Type</th>
                   <th>Running</th>
                   <th>Reserved</th>
-                  <th title='Positive: Unused Reservations (bad);
-                      Negative: On-Demand Instances without Reservations (buy more)'>Delta&dagger;</th>
+                  <th title='Positive: On-Demand Instances without Reservations (buy more);
+                      Negative: Unused Reservations (bad)'>Delta&dagger;</th>
                   <th>Up-Front</th>
                   <th title='Positive: Savings (good); Negative: Loss (bad)'>Savings/Loss&dagger;</th>
                   <th>Purchase</th>
@@ -49,6 +50,7 @@
           <tfoot>
               <tr>
                   <th></th>
+                  <th>Account</th>
                   <th>AZ</th>
                   <th>Type</th>
                   <th>Running</th>

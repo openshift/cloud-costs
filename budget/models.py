@@ -223,8 +223,8 @@ class AwsInstanceInventory(Base):
     __tablename__ = 'aws_instance_inventory'
 
     id = Column(Integer, primary_key=True)
-    name = Column(String(64), nullable=True)
-    environment = Column(String(64), nullable=True)
+    name = Column(String(64))
+    environment = Column(String(64))
     instance_id = Column(String(64), nullable=False, unique=True)
     instance_type = Column(String(64), nullable=False)
     availability_zone = Column(String(64), nullable=False)
@@ -232,6 +232,7 @@ class AwsInstanceInventory(Base):
     status = Column(String(16), nullable=False)
     launch_date = Column(DateTime, nullable=False)
     check_date = Column(DateTime, nullable=False)
+    region = Column(String(64))
 
 class AwsReservationInventory(Base):
     __tablename__ = 'aws_reservation_inventory'
@@ -241,10 +242,11 @@ class AwsReservationInventory(Base):
     instance_type = Column(String(64), nullable=False)
     availability_zone = Column(String(64))
     account = Column(BigInteger, nullable=False)
-    purchase_date = Column(DateTime, nullable=False)
-    expiration_date = Column(DateTime, nullable=False)
+    start = Column(DateTime, nullable=False)
+    end = Column(DateTime, nullable=False)
     instance_count = Column(Integer, nullable=False)
-    scope = Column(String(32), nullable=True)
+    scope = Column(String(32))
+    region = Column(String(64))
 
 Index('product_idx1', AwsDetailedLineItem.product_name, unique=True)
 Index('start_date_idx1', AwsDetailedLineItem.usage_start_date, unique=True)

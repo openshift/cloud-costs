@@ -22,6 +22,7 @@ $(document).ready(function() {
                     'orderable' : false,
                     'defaultContent' : ''
                 },
+                { 'data' : 'account', 'className' : 'account-number' },
                 { 'data' : 'zone', 'className' : 'availability-zone' },
                 { 'data' : 'type', 'className' : 'instance-type' },
                 {

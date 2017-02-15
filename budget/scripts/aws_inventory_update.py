@@ -4,15 +4,13 @@
 import logging
 import ssl
 import sys
-import transaction
 import traceback
 
-import botocore.exceptions
-import boto3
-
 from datetime import datetime, timedelta
-from dateutil import parser as date_parser
 from multiprocessing import Pool, cpu_count
+
+import boto3
+import transaction
 
 from sqlalchemy import engine_from_config
 from sqlalchemy.sql import functions
@@ -62,8 +60,8 @@ def update_instance_inventory(region, access_key, secret_key, account):
     objects = []
     try:
         for inst in instances:
-            name = 'No Name'
-            env = 'No Environment'
+            name = None
+            env = None
             for dic in inst.get('Tags', {}):
                 if dic['Key'] == 'Name':
                     name = dic['Value']
@@ -77,6 +75,7 @@ def update_instance_inventory(region, access_key, secret_key, account):
                     'environment' : env,
                     'instance_type' : inst['InstanceType'],
                     'availability_zone' : inst['Placement']['AvailabilityZone'],
+                    'region' : region,
                     'account' : get_account_number(account),
                     'status' : inst['State']['Name'],
                     'launch_date' : inst['LaunchTime'].replace(tzinfo=None),
@@ -107,13 +106,15 @@ def update_reservation_inventory(region, access_key, secret_key, account):
     objects = []
     try:
         for rsrv in response['ReservedInstances']:
+            log.debug(rsrv)
             obj = (AwsReservationInventory,
                    {'reservation_id': rsrv['ReservedInstancesId']},
                    {'instance_type' : rsrv['InstanceType'],
                     'availability_zone' : rsrv.get('AvailabilityZone', None),
                     'account' : get_account_number(account),
-                    'purchase_date' : rsrv['Start'].replace(tzinfo=None),
-                    'expiration_date' : rsrv['End'].replace(tzinfo=None),
+                    'start' : rsrv['Start'].replace(tzinfo=None),
+                    'end' : rsrv['End'].replace(tzinfo=None),
+                    'region' : region,
                     'scope' : rsrv['Scope'],
                     'instance_count' : rsrv['InstanceCount'],
                    })
@@ -150,7 +151,7 @@ def prune_reservations(threshold=365):
     '''
     threshold_date = CHECK_DATE - timedelta(days=threshold)
     DBSession.query(AwsReservationInventory
-                   ).filter(AwsReservationInventory.expiration_date <= threshold_date,
+                   ).filter(AwsReservationInventory.end <= threshold_date,
                            ).delete()
     transaction.commit()
 
