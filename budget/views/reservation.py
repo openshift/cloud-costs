@@ -288,14 +288,6 @@ class AwsAccount(object):
                             if key in i.__dict__ and getattr(i, key) == val]
         return reservations
 
-    def unused_reservations(self, instance_type):
-        ''' given an instance type, return a count of unused reserved
-            instances.
-        '''
-        instance_count = len(self.search_instances(instance_type=instance_type))
-        reservation_count = len(self.search_reservations(instance_type=instance_type))
-        return max(0, instance_count-reservation_count)
-
     def expiring_reservations(self, instance_type, availability_zone):
         ''' given an instance type and availability zone,
             return a list of when this account's reservations will expire
@@ -313,8 +305,8 @@ class AwsAccount(object):
                 out.append(data)
         return out
 
-    def total_upfront(self, instance_type, availability_zone):
-        ''' return the total up-front cost for all reservations of this type,
+    def reserved_cost(self, instance_type, availability_zone):
+        ''' return the up-front cost for a reservation of this type,
             in this zone.
         '''
 
@@ -322,23 +314,19 @@ class AwsAccount(object):
         for rsrv in self.reservations:
             if rsrv.instance_type == instance_type and \
                     rsrv.availability_zone == availability_zone:
-                cost += rsrv.upfront_cost
-        return cost
+                return (rsrv.upfront_cost, rsrv.hourly_rate)
 
-    def total_reserved_rate(self, instance_type, availability_zone):
-        ''' return the total reserved hourly rate for all reservations of this type,
-            in this zone.
-        '''
+        for i in self.instances:
+            if i.instance_type == instance_type and \
+                    i.availability_zone == availability_zone:
+                LOG.debug("ZZZ: %s %s %s", i.instance_type,
+                        i.region, i.ri_price)
+                return (i.ri_price.get('Quantity', 0), i.ri_price.get('Hrs', 0))
 
-        cost = Decimal(0)
-        for rsrv in self.reservations:
-            if rsrv.instance_type == instance_type and \
-                    rsrv.availability_zone == availability_zone:
-                cost += rsrv.hourly_rate
-        return cost
+        return (0, 0)
 
-    def total_ondemand_rate(self, instance_type, availability_zone):
-        ''' return the total on-demand hourly cost for all instances of this type,
+    def ondemand_cost(self, instance_type, availability_zone):
+        ''' return the on-demand hourly rate for instances of this type,
             in this zone.
         '''
 
@@ -346,8 +334,8 @@ class AwsAccount(object):
         for inst in self.instances:
             if inst.instance_type == instance_type and \
                     inst.availability_zone == availability_zone:
-                cost += inst.hourly_rate
-        return cost
+                return inst.hourly_rate
+        return 0
 
 class AwsAccountList(object):
     ''' a collection of aws accounts '''
@@ -381,12 +369,11 @@ class AwsAccountList(object):
                         account.search_reservations(instance_type=instance_type,
                                                     availability_zone=zone)])
 
-                    ondemand = account.total_ondemand_rate(instance_type, zone)
-                    ondemand = ondemand * 24 * 30 # monthly rate
+                    ondemand = account.ondemand_cost(instance_type, zone)
+                    od_monthly = ondemand * 24 * 30
 
-                    r_hourly = account.total_reserved_rate(instance_type, zone)
-                    r_upfront = account.total_upfront(instance_type, zone)
-                    r_monthly = (r_upfront/12) + (r_hourly * 24 * 30)
+                    r_upfront, r_hourly = account.reserved_cost(instance_type, zone)
+                    r_monthly = ((r_upfront/12) + (r_hourly * 24 * 30))
 
                     data = {'account' : account.account_number,
                             'expiration' : account.expiring_reservations(instance_type,
@@ -395,9 +382,9 @@ class AwsAccountList(object):
                             'zone' : zone,
                             'running' : running,
                             'reserved' : reserved,
-                            'delta' : running - reserved,
-                            'upfront' : locale.currency(r_upfront),
-                            'savings' : locale.currency(ondemand - r_monthly)
+                            'delta' : running-reserved,
+                            'upfront' : locale.currency(r_upfront*(running-reserved)),
+                            'savings' : locale.currency((od_monthly-r_monthly)*(running-reserved))
                            }
                     out.append(data)
         return out
@@ -422,14 +409,15 @@ class AwsAccountList(object):
                         account.search_reservations(instance_type=instance_type,
                                                     availability_zone=zone)])
 
+                    r_upfront, = account.reserved_cost(instance_type, zone)
+
                     data = [account.account_number,
                             zone,
                             instance_type,
                             running,
                             reserved,
                             (running - reserved),
-                            locale.currency(account.total_upfront(instance_type,
-                                                                  zone)),
+                            locale.currency(r_upfront*(running - reserved))
                            ]
                     out.append(data)
         return out
@@ -446,6 +434,7 @@ class AwsInstance(object):
         self.region = kwargs.get('region', None)
         self.availability_zone = kwargs.get('availability_zone', None)
         self.hourly_rate = kwargs.get('hourly_rate', 0)
+        self.ri_price = kwargs.get('ri_price', 0)
 
 class AwsReservedInstance(object):
     ''' aws reserved instance model object '''
@@ -531,14 +520,27 @@ def compile_data(request):
                                  availability_zones=zones)
 
         for i in get_instances(num):
-            if i.instance_type in query_cache['i'].keys():
-                price = query_cache['i'][i.instance_type]
+            tup = (i.instance_type, i.availability_zone)
+            if tup in query_cache['i'].keys():
+                od_price = query_cache['i'][tup]
             else:
-                price = get_price(request,
-                                  instance_type=i.instance_type,
-                                  region=i.region,
-                                  pricing='OnDemand')
-                query_cache['i'][i.instance_type] = price
+                od_price = get_price(request,
+                                     instance_type=i.instance_type,
+                                     region=i.region,
+                                     pricing='OnDemand')
+                query_cache['i'][tup] = od_price
+
+            if tup in query_cache['r'].keys():
+                r_price = query_cache['r'][tup]
+            else:
+                r_price = get_price(request,
+                                    instance_type=i.instance_type,
+                                    region=i.region,
+                                    pricing='Reserved',
+                                    lease_contract_length='1yr',
+                                    purchase_option='Partial Upfront',
+                                    scope='AvailabilityZone')
+                query_cache['r'][tup] = r_price
 
             instance = AwsInstance(instance_id=i.instance_id,
                                    name=i.name,
@@ -547,13 +549,15 @@ def compile_data(request):
                                    instance_type=i.instance_type,
                                    region=i.region,
                                    availability_zone=i.availability_zone,
-                                   hourly_rate=price.get('Hrs', 0),
+                                   hourly_rate=od_price.get('Hrs', 0),
+                                   ri_price=r_price
                                   )
             aws_account.instances.append(instance)
 
         for r in get_reservations(num):
-            if r.instance_type in query_cache['r'].keys():
-                price = query_cache['r'][r.instance_type]
+            tup = (r.instance_type, r.availability_zone)
+            if tup in query_cache['r'].keys():
+                price = query_cache['r'][tup]
             else:
                 price = get_price(request,
                                   instance_type=r.instance_type,
@@ -562,7 +566,7 @@ def compile_data(request):
                                   lease_contract_length='1yr',
                                   purchase_option='Partial Upfront',
                                   scope=r.scope)
-                query_cache['r'][r.instance_type] = price
+                query_cache['r'][tup] = price
 
             reserved = AwsReservedInstance(account=r.account,
                                            reservation_id=r.reservation_id,

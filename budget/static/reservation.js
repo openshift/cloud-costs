@@ -167,7 +167,7 @@ $(document).ready(function() {
         });
 
         // Add event listener for displaying instances list dialog
-        $('table.datatable#'+$(this).attr("id")+' tbody').on('click', 'a.running-count-link', function () {
+        $('table.datatable#'+$(this).attr("id")+' tbody').on('click', 'a.runningCountLink', function () {
             var row = $(this).closest("tr");
             var account = $(this).closest("table.results_table").attr('id');
             var az = row.children("td.availability-zone").text();
