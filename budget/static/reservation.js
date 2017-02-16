@@ -175,7 +175,7 @@ $(document).ready(function() {
 
             var tbl = '<table class="instancesTable"></table>';
             $("#dialog").html(tbl)
-                .children('table.instances-table')
+                .children('table.instancesTable')
                 .DataTable({
                     "processing" : true,
                     "serverSide" : false,
