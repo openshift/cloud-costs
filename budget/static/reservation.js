@@ -66,7 +66,7 @@ $(document).ready(function() {
             "footerCallback" : function (row, data, start, end, display) {
                 var api = this.api(), data;
 
-                cols = [3,4,5,6]
+                cols = [4,5,6,7]
                 for (n in cols) {
                     // Total over all pages
                     total = api

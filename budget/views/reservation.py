@@ -2,16 +2,17 @@
     running instances.
 '''
 
-import botocore.exceptions
-import boto3
+import collections
 import json
 import locale
 import logging
 import re
 
-from collections import defaultdict
 from datetime import datetime, timedelta
 from decimal import Decimal, getcontext
+
+import botocore.exceptions
+import boto3
 
 from pyramid.response import Response
 from pyramid.view import view_config
@@ -80,6 +81,7 @@ def reservation_data(request):
     out = account_data.json()
 
     # data formatted for jQuery DataTable
+    LOG.debug(out)
     return {'draw' : 1,
             'recordsTotal' : len(out),
             'recordsFiltered' : len(out),
@@ -251,16 +253,241 @@ def reservation_expiration_graph(request):
 class AwsAccount(object):
     ''' aws account-level info '''
 
+# FIXME: update references to self.availability_zones to use new object
+#        hierarchy
+
     def __init__(self, **kwargs):
+        self.name = kwargs.get('name', None)
         self.account_number = kwargs.get('account_number', '000000000000')
-        self.instances = kwargs.get('instances', [])
         self.reservations = kwargs.get('reservations', [])
         self.regions = kwargs.get('regions', [])
+
+    def __repr__(self):
+        return "AwsAccount %s: %s" % (self.name, self.account_number)
+
+    def get_regional_reservations(self):
+        ''' return a dict of region-scoped RIs '''
+        out = {}
+        for region in self.regions:
+            for instance_type in region.reserved_instance_types():
+                reserved = sum([r.instance_count for r in \
+                    region.search_reservations(instance_type=instance_type,
+                                               region=region)])
+                if reserved > 0:
+                    out[(instance_type, region)] = {'reserved' : reserved}
+        return out
+
+    def get_reservation_deltas(self):
+        ''' returns a dict identifying difference between reservations and
+            running instances
+        '''
+        out = {}
+        for reg in self.regions:
+            for zone in reg.availability_zones:
+                for instance_type in zone.instance_types():
+                    running = len(zone.search_instances(
+                        instance_type=instance_type,
+                        availability_zone=zone))
+
+                    reserved = sum([r.instance_count for r in \
+                        zone.search_reservations(instance_type=instance_type,
+                                                 availability_zone=zone)])
+
+                    if running < 1 and reserved < 1:
+                        continue
+
+                    out[(instance_type, zone)] = {'running' : running,
+                                                  'reserved' : reserved,
+                                                  'delta' : running - reserved}
+        return out
+
+    def region(self, name):
+        ''' getter method for regions '''
+        for region in self.regions:
+            if region.name == name:
+                return region
+
+    def reservation_types(self):
+        ''' return a list of reserved instance types '''
+        return [rsrv.instance_type for rsrv in self.reservations]
+
+
+class AwsAccountList(collections.MutableSet):
+    ''' a collection of aws accounts '''
+
+    def __init__(self, **kwargs):
+        self.accounts = kwargs.get('accounts', [])
+
+    def __iter__(self):
+        return iter(self.accounts)
+
+    def __contains__(self, thing):
+        return thing in self.accounts
+
+    def __len__(self):
+        return len(self.accounts)
+
+    def add(self, account):
+        self.accounts.append(account)
+
+    def discard(self, account):
+        self.accounts.remove(account)
+
+    def global_ri_balance(self):
+        ''' reallocate unused RIs from account-A to account for on-demand
+            instances in account-B to get a "more true" accounting of the RI
+            inventory
+        '''
+        pass
+
+    def json(self):
+        ''' output json-formatted object for display in DataTable
+
+            each table row has these fields:
+            Expiration Details | Account | AZ | Type | Running | Reserved | Delta | Up-Front | Savings
+        '''
+
+        out = []
+        for account in self.accounts:
+            delta = account.get_reservation_deltas()
+
+            LOG.debug("XXX: %s" % account)
+            LOG.debug("XXX: %s" % delta)
+            for tup, val in delta.iteritems():
+                instance_type = tup[0]
+                zone = tup[1]
+
+                ondemand = zone.ondemand_cost(instance_type)
+                od_monthly = ondemand * 24 * 30
+
+                r_upfront, r_hourly = zone.reserved_cost(instance_type)
+                r_monthly = ((r_upfront/12) + (r_hourly * 24 * 30))
+
+                data = {'account' : account.account_number,
+                        #FIXME: this needs a regional roll-up version
+                        'expiration' : zone.expiring_reservations(instance_type),
+                        'type' : instance_type,
+                        'zone' : zone.name,
+                        'running' : val['running'],
+                        'reserved' : val['reserved'],
+                        'delta' : val['delta'],
+                        'upfront' : locale.currency(r_upfront*val['delta']),
+                        'savings' : locale.currency(abs((od_monthly-r_monthly))*val['delta'])
+                       }
+                out.append(data)
+        return out
+
+    def csv(self):
+        ''' output csv-formatted object
+
+            each table row has these fields:
+            Account | AZ | Type | Running | Reserved | Delta | Up-Front
+        '''
+
+        out = []
+        for account in self.accounts:
+            delta = account.get_reservation_deltas()
+            for tup, val in delta.iteritems():
+                instance_type = tup[0]
+                zone = tup[1]
+
+                r_upfront, = zone.reserved_cost(instance_type)
+
+                data = [account.account_number,
+                        zone.name,
+                        instance_type,
+                        val['running'],
+                        val['reserved'],
+                        val['delta'],
+                        locale.currency(r_upfront*val['delta'])
+                       ]
+                out.append(data)
+        return out
+
+class AwsInstance(object):
+    ''' aws instance model object '''
+
+    def __init__(self, **kwargs):
+        self.instance_id = kwargs.get('id', 0)
+        self.name = kwargs.get('name', None)
+        self.environment = kwargs.get('environment', None)
+        self.instance_type = kwargs.get('instance_type', None)
+        self.region = kwargs.get('region', None)
+        self.availability_zone = kwargs.get('availability_zone', None)
+        self.hourly_rate = kwargs.get('hourly_rate', 0)
+        self.ri_price = kwargs.get('ri_price', 0)
+
+    def __repr__(self):
+        return "AwsInstance %s" % (self.instance_id)
+
+class AwsReservedInstance(object):
+    ''' aws reserved instance model object '''
+
+    def __init__(self, **kwargs):
+        self.reservation_id = kwargs.get('id', 0)
+        self.instance_type = kwargs.get('instance_type', None)
+        self.instance_count = kwargs.get('instance_count', None)
+        self.region = kwargs.get('region', None)
+        self.availability_zone = kwargs.get('availability_zone', None)
+        self.scope = kwargs.get('scope', None)
+        self.upfront_cost = kwargs.get('upfront_cost', 0)
+        self.hourly_rate = kwargs.get('hourly_rate', 0)
+        self.start = kwargs.get('start', datetime(1970, 1, 1, 0, 0, 0))
+        self.end = kwargs.get('end', datetime(1970, 1, 1, 0, 0, 0))
+
+    def __repr__(self):
+        return "AwsReservedInstance %s" % (self.reservation_id)
+
+class AwsRegion(object):
+    ''' aws region model object '''
+
+    def __init__(self, **kwargs):
+        self.name = kwargs.get('name', None)
         self.availability_zones = kwargs.get('availability_zones', [])
+        self.reserved_instances = kwargs.get('reserved_instances', [])
+
+    def __repr__(self):
+        return "AwsRegion %s" % (self.name)
+
+    def availability_zone(self, name):
+        ''' getter method for AZs '''
+        for zone in self.availability_zones:
+            if zone.name == name:
+                return zone
+
+    def reserved_instance_types(self):
+        ''' return list of region-scoped reserved instance types used in this region '''
+        return set([rsrv.instance_type for rsrv in self.reserved_instances])
+
+    def search_reservations(self, **kwargs):
+        ''' search for reservations matching all provided criteria.
+
+            kwargs keys must match attributes of the AwsReservedInstance class
+        '''
+        reservations = self.reserved_instances
+        for key, val in kwargs.items():
+            reservations = [i for i in reservations \
+                            if key in i.__dict__ and getattr(i, key) == val]
+        return reservations
+
+class AwsAvailabilityZone(object):
+    ''' aws availability zone model object '''
+
+    def __init__(self, **kwargs):
+        self.name = kwargs.get('name', None)
+        self.instances = kwargs.get('instances', [])
+        self.reserved_instances = kwargs.get('reserved_instances', [])
+
+    def __repr__(self):
+        return "AwsAvailabilityZone %s" % (self.name)
 
     def instance_types(self):
-        ''' return a list of instance types '''
+        ''' return list of instance types used in this AZ '''
         return set([inst.instance_type for inst in self.instances])
+
+    def reserved_instance_types(self):
+        ''' return list of reserved instance types used in this AZ '''
+        return set([rsrv.instance_type for rsrv in self.reserved_instances])
 
     def search_instances(self, **kwargs):
         ''' search for instances matching all provided criteria.
@@ -273,184 +500,58 @@ class AwsAccount(object):
                             if key in i.__dict__ and getattr(i, key) == val]
         return instances
 
-    def reservation_types(self):
-        ''' return a list of reserved instance types '''
-        return [rsrv.instance_type for rsrv in self.reservations]
-
     def search_reservations(self, **kwargs):
         ''' search for reservations matching all provided criteria.
 
             kwargs keys must match attributes of the AwsReservedInstance class
         '''
-        reservations = self.reservations
+        reservations = self.reserved_instances
+        LOG.debug('XXX: %s' % reservations)
         for key, val in kwargs.items():
             reservations = [i for i in reservations \
                             if key in i.__dict__ and getattr(i, key) == val]
+        LOG.debug('XXX: %s' % reservations)
         return reservations
 
-    def expiring_reservations(self, instance_type, availability_zone):
+    def ondemand_cost(self, instance_type):
+        ''' return the on-demand hourly rate for instances of this type,
+            in this zone.
+        '''
+
+        for inst in self.instances:
+            if inst.instance_type == instance_type:
+                return inst.hourly_rate
+        return 0
+
+    def expiring_reservations(self, instance_type):
         ''' given an instance type and availability zone,
             return a list of when this account's reservations will expire
         '''
 
         out = []
-        for rsrv in self.reservations:
-            if rsrv.instance_type == instance_type and \
-                    rsrv.availability_zone == availability_zone:
-                data = {'account' : self.account_number,
-                        'end_date' : rsrv.end.strftime("%Y-%m-%d"),
+        for rsrv in self.reserved_instances:
+            if rsrv.instance_type == instance_type:
+                data = {'end_date' : rsrv.end.strftime("%Y-%m-%d"),
                         'count' : rsrv.instance_count,
                         'days_left' : (rsrv.end - datetime.now()).days
                        }
                 out.append(data)
         return out
 
-    def reserved_cost(self, instance_type, availability_zone):
+    def reserved_cost(self, instance_type):
         ''' return the up-front cost for a reservation of this type,
             in this zone.
         '''
 
-        cost = Decimal(0)
-        for rsrv in self.reservations:
-            if rsrv.instance_type == instance_type and \
-                    rsrv.availability_zone == availability_zone:
+        for rsrv in self.reserved_instances:
+            if rsrv.instance_type == instance_type:
                 return (rsrv.upfront_cost, rsrv.hourly_rate)
 
         for i in self.instances:
-            if i.instance_type == instance_type and \
-                    i.availability_zone == availability_zone:
-                LOG.debug("ZZZ: %s %s %s", i.instance_type,
-                        i.region, i.ri_price)
+            if i.instance_type == instance_type:
                 return (i.ri_price.get('Quantity', 0), i.ri_price.get('Hrs', 0))
 
         return (0, 0)
-
-    def ondemand_cost(self, instance_type, availability_zone):
-        ''' return the on-demand hourly rate for instances of this type,
-            in this zone.
-        '''
-
-        cost = Decimal(0)
-        for inst in self.instances:
-            if inst.instance_type == instance_type and \
-                    inst.availability_zone == availability_zone:
-                return inst.hourly_rate
-        return 0
-
-class AwsAccountList(object):
-    ''' a collection of aws accounts '''
-
-    def __init__(self, **kwargs):
-        self.accounts = kwargs.get('accounts', [])
-
-    def add(self, account):
-        ''' appends an account to the list '''
-        self.accounts.append(account)
-
-    def json(self):
-        ''' output json-formatted object '''
-
-        # each table row has these fields:
-        # Expiration Details | Account | AZ | Type | Running | Reserved | Delta | Up-Front | Savings
-
-
-        out = []
-        for account in self.accounts:
-            for instance_type in account.instance_types():
-                for zone in account.availability_zones:
-                    running = len(account.search_instances(
-                        instance_type=instance_type,
-                        availability_zone=zone))
-
-                    if running < 1:
-                        continue
-
-                    reserved = sum([r.instance_count for r in \
-                        account.search_reservations(instance_type=instance_type,
-                                                    availability_zone=zone)])
-
-                    ondemand = account.ondemand_cost(instance_type, zone)
-                    od_monthly = ondemand * 24 * 30
-
-                    r_upfront, r_hourly = account.reserved_cost(instance_type, zone)
-                    r_monthly = ((r_upfront/12) + (r_hourly * 24 * 30))
-
-                    data = {'account' : account.account_number,
-                            'expiration' : account.expiring_reservations(instance_type,
-                                                                         zone),
-                            'type' : instance_type,
-                            'zone' : zone,
-                            'running' : running,
-                            'reserved' : reserved,
-                            'delta' : running-reserved,
-                            'upfront' : locale.currency(r_upfront*(running-reserved)),
-                            'savings' : locale.currency((od_monthly-r_monthly)*(running-reserved))
-                           }
-                    out.append(data)
-        return out
-
-    def csv(self):
-        ''' output csv-formatted object '''
-
-        # each table row has these fields:
-        #  Account | AZ | Type | Running | Reserved | Delta | Up-Front
-        out = []
-        for account in self.accounts:
-            for instance_type in account.instance_types():
-                for zone in account.availability_zones:
-                    running = len(account.search_instances(
-                        instance_type=instance_type,
-                        availability_zone=zone))
-
-                    if running < 1:
-                        continue
-
-                    reserved = sum([r.instance_count for r in \
-                        account.search_reservations(instance_type=instance_type,
-                                                    availability_zone=zone)])
-
-                    r_upfront, = account.reserved_cost(instance_type, zone)
-
-                    data = [account.account_number,
-                            zone,
-                            instance_type,
-                            running,
-                            reserved,
-                            (running - reserved),
-                            locale.currency(r_upfront*(running - reserved))
-                           ]
-                    out.append(data)
-        return out
-
-class AwsInstance(object):
-    ''' aws instance model object '''
-
-    def __init__(self, **kwargs):
-        self.account = kwargs.get('account', None)
-        self.instance_id = kwargs.get('id', 0)
-        self.name = kwargs.get('name', None)
-        self.environment = kwargs.get('environment', None)
-        self.instance_type = kwargs.get('instance_type', None)
-        self.region = kwargs.get('region', None)
-        self.availability_zone = kwargs.get('availability_zone', None)
-        self.hourly_rate = kwargs.get('hourly_rate', 0)
-        self.ri_price = kwargs.get('ri_price', 0)
-
-class AwsReservedInstance(object):
-    ''' aws reserved instance model object '''
-
-    def __init__(self, **kwargs):
-        self.account = kwargs.get('account', None)
-        self.reservation_id = kwargs.get('id', 0)
-        self.instance_type = kwargs.get('instance_type', None)
-        self.instance_count = kwargs.get('instance_count', None)
-        self.region = kwargs.get('region', None)
-        self.availability_zone = kwargs.get('availability_zone', None)
-        self.scope = kwargs.get('scope', None)
-        self.upfront_cost = kwargs.get('upfront_cost', 0)
-        self.hourly_rate = kwargs.get('hourly_rate', 0)
-        self.start = kwargs.get('start', datetime(1970, 1, 1, 0, 0, 0))
-        self.end = kwargs.get('end', datetime(1970, 1, 1, 0, 0, 0))
 
 #########################################################
 # Helper methods
@@ -478,6 +579,7 @@ def availability_zones(request, account):
     ''' return a list of EC2 AZs for a given account,
         cache the data locally for performance reasons
     '''
+    THRESHOLD=3
 
     zone_file = request.registry.settings['cache.dir'] + "/ec2_zones.yaml"
     try:
@@ -487,9 +589,15 @@ def availability_zones(request, account):
 
     last_check = zones.get('last_check', datetime(1970, 1, 1, 0, 0, 0))
 
-    regions = boto3.session.Session().get_available_regions('ec2')
+    if len(zones.keys()) > 0 and \
+           datetime.now()-last_check < timedelta(days=THRESHOLD):
+        regions = zones.keys()
+    else:
+        regions = boto3.session.Session().get_available_regions('ec2')
+
     for region in regions:
-        if region not in zones or datetime.now()-last_check > timedelta(days=30):
+        if region not in zones or \
+                datetime.now()-last_check > timedelta(days=THRESHOLD):
             ec2 = get_ec2_client(request, region, account)
             az_list = ec2.describe_availability_zones().get('AvailabilityZones', None)
             zones[region] = [zone['ZoneName'] for zone in az_list]
@@ -506,81 +614,110 @@ def compile_data(request):
     creds_file = request.registry.settings['creds.dir'] + "/creds.yaml"
     accounts = sorted(load_yaml(creds_file).keys())
 
-    regions = boto3.session.Session().get_available_regions('ec2')
+    boto_regions = boto3.session.Session().get_available_regions('ec2')
 
     acct_list = AwsAccountList()
 
-    query_cache = {'i': {}, 'r': {}}
+    query_cache = {'a':{}, 'b':{}, 'i':{}, 'j':{}}
 
     for account in accounts:
         num = get_account_number(account, request.registry.settings)
-        zones = availability_zones(request, account)
-        aws_account = AwsAccount(account_number=num,
-                                 regions=regions,
-                                 availability_zones=zones)
+        aws_account = AwsAccount(name=account,
+                                 account_number=num)
 
-        for i in get_instances(num):
-            tup = (i.instance_type, i.availability_zone)
-            if tup in query_cache['i'].keys():
-                od_price = query_cache['i'][tup]
+        for boto_region in boto_regions:
+            region = AwsRegion(name=boto_region)
+
+            boto_zones = availability_zones(request, account)
+
+            az_dict = {zone : AwsAvailabilityZone(name=zone) for zone in
+                       boto_zones if boto_region == zone[:-1]}
+
+            if num in query_cache['a'].keys():
+                instances = query_cache['a'][num]
             else:
-                od_price = get_price(request,
-                                     instance_type=i.instance_type,
-                                     region=i.region,
-                                     pricing='OnDemand')
-                query_cache['i'][tup] = od_price
+                instances = get_instances(num)
+                query_cache['a'][num] = instances
 
-            if tup in query_cache['r'].keys():
-                r_price = query_cache['r'][tup]
+            for i in instances:
+                tup = (i.instance_type, i.availability_zone)
+
+                if i.availability_zone not in az_dict.keys():
+                    continue
+
+                if tup in query_cache['i'].keys():
+                    od_price = query_cache['i'][tup]
+                else:
+                    od_price = get_price(request,
+                                         instance_type=i.instance_type,
+                                         region=i.region,
+                                         pricing='OnDemand')
+                    query_cache['i'][tup] = od_price
+
+                if tup in query_cache['j'].keys():
+                    r_price = query_cache['j'][tup]
+                else:
+                    r_price = get_price(request,
+                                        instance_type=i.instance_type,
+                                        region=i.region,
+                                        pricing='Reserved',
+                                        lease_contract_length='1yr',
+                                        purchase_option='Partial Upfront',
+                                        scope='AvailabilityZone')
+                    query_cache['j'][tup] = r_price
+
+                instance = AwsInstance(instance_id=i.instance_id,
+                                       name=i.name,
+                                       environment=i.environment,
+                                       instance_type=i.instance_type,
+                                       region=region,
+                                       availability_zone=az_dict[i.availability_zone],
+                                       hourly_rate=od_price.get('Hrs', 0),
+                                       ri_price=r_price
+                                      )
+                az_dict[i.availability_zone].instances.append(instance)
+
+            if num in query_cache['b'].keys():
+                reservations = query_cache['b'][num]
             else:
-                r_price = get_price(request,
-                                    instance_type=i.instance_type,
-                                    region=i.region,
-                                    pricing='Reserved',
-                                    lease_contract_length='1yr',
-                                    purchase_option='Partial Upfront',
-                                    scope='AvailabilityZone')
-                query_cache['r'][tup] = r_price
+                reservations = get_reservations(num)
+                query_cache['b'][num] = reservations
 
-            instance = AwsInstance(instance_id=i.instance_id,
-                                   name=i.name,
-                                   environment=i.environment,
-                                   account=i.account,
-                                   instance_type=i.instance_type,
-                                   region=i.region,
-                                   availability_zone=i.availability_zone,
-                                   hourly_rate=od_price.get('Hrs', 0),
-                                   ri_price=r_price
-                                  )
-            aws_account.instances.append(instance)
+            for r in reservations:
+                tup = (r.instance_type, r.availability_zone)
 
-        for r in get_reservations(num):
-            tup = (r.instance_type, r.availability_zone)
-            if tup in query_cache['r'].keys():
-                price = query_cache['r'][tup]
-            else:
-                price = get_price(request,
-                                  instance_type=r.instance_type,
-                                  region=r.region,
-                                  pricing='Reserved',
-                                  lease_contract_length='1yr',
-                                  purchase_option='Partial Upfront',
-                                  scope=r.scope)
-                query_cache['r'][tup] = price
+                if r.availability_zone not in az_dict.keys():
+                    continue
 
-            reserved = AwsReservedInstance(account=r.account,
-                                           reservation_id=r.reservation_id,
-                                           instance_type=r.instance_type,
-                                           instance_count=r.instance_count,
-                                           region=r.region,
-                                           availability_zone=r.availability_zone,
-                                           scope=r.scope,
-                                           upfront_cost=price.get('Quantity', 0),
-                                           hourly_rate=price.get('Hrs', 0),
-                                           start=r.start,
-                                           end=r.end,
-                                          )
-            aws_account.reservations.append(reserved)
+                if tup in query_cache['j'].keys():
+                    price = query_cache['j'][tup]
+                else:
+                    price = get_price(request,
+                                      instance_type=r.instance_type,
+                                      region=r.region,
+                                      pricing='Reserved',
+                                      lease_contract_length='1yr',
+                                      purchase_option='Partial Upfront',
+                                      scope=r.scope)
+                    query_cache['j'][tup] = price
+
+                reserved = AwsReservedInstance(reservation_id=r.reservation_id,
+                                               instance_type=r.instance_type,
+                                               instance_count=r.instance_count,
+                                               region=region,
+                                               availability_zone=az_dict.get(r.availability_zone),
+                                               scope=r.scope,
+                                               upfront_cost=price.get('Quantity', 0),
+                                               hourly_rate=price.get('Hrs', 0),
+                                               start=r.start,
+                                               end=r.end,
+                                              )
+                if r.scope == 'Region':
+                    region.reserved_instances.append(reserved)
+                else:
+                    az_dict[r.availability_zone].reserved_instances.append(reserved)
+            region.availability_zones = az_dict.values()
+            aws_account.regions.append(region)
         acct_list.add(aws_account)
     return acct_list
 
