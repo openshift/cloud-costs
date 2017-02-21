@@ -65,7 +65,7 @@ def reservation_csv(request):
     filename = 'ri-report.csv'
     request.response.content_disposition = 'attachment;filename=' + filename
 
-    header = ['Zone', 'Type', 'Running', 'Reserved', 'Delta', 'Up Front']
+    header = ['Account', 'Zone', 'Type', 'Running', 'Reserved', 'Delta', 'Up Front']
 
     account_data = compile_data(request)
     rows = account_data.csv()
@@ -253,9 +253,6 @@ def reservation_expiration_graph(request):
 class AwsAccount(object):
     ''' aws account-level info '''
 
-# FIXME: update references to self.availability_zones to use new object
-#        hierarchy
-
     def __init__(self, **kwargs):
         self.name = kwargs.get('name', None)
         self.account_number = kwargs.get('account_number', '000000000000')
@@ -277,28 +274,13 @@ class AwsAccount(object):
                     out[(instance_type, region)] = {'reserved' : reserved}
         return out
 
-    def get_reservation_deltas(self):
+    def reservation_delta(self):
         ''' returns a dict identifying difference between reservations and
             running instances
         '''
         out = {}
-        for reg in self.regions:
-            for zone in reg.availability_zones:
-                for instance_type in zone.instance_types():
-                    running = len(zone.search_instances(
-                        instance_type=instance_type,
-                        availability_zone=zone))
-
-                    reserved = sum([r.instance_count for r in \
-                        zone.search_reservations(instance_type=instance_type,
-                                                 availability_zone=zone)])
-
-                    if running < 1 and reserved < 1:
-                        continue
-
-                    out[(instance_type, zone)] = {'running' : running,
-                                                  'reserved' : reserved,
-                                                  'delta' : running - reserved}
+        for region in self.regions:
+            out.update(region.reservation_delta())
         return out
 
     def region(self, name):
@@ -310,7 +292,6 @@ class AwsAccount(object):
     def reservation_types(self):
         ''' return a list of reserved instance types '''
         return [rsrv.instance_type for rsrv in self.reservations]
-
 
 class AwsAccountList(collections.MutableSet):
     ''' a collection of aws accounts '''
@@ -333,12 +314,81 @@ class AwsAccountList(collections.MutableSet):
     def discard(self, account):
         self.accounts.remove(account)
 
-    def global_ri_balance(self):
-        ''' reallocate unused RIs from account-A to account for on-demand
-            instances in account-B to get a "more true" accounting of the RI
-            inventory
+    def get_reservation_deltas(self):
+        ''' get counts of RIs and running instances, along with a rough
+            approximation of allocation of RIs to instances. Factor in
+            region-scoped RIs and allocation of RIs across accounts.
         '''
-        pass
+
+        out = {}
+        for account in self.accounts:
+            out[account] = account.reservation_delta()
+
+        # pylint: disable=invalid-name
+        def _reallocate(a, b):
+            ''' reallocate RIs from a to b '''
+            if a['scope'] == 'AvailabilityZone':
+                if abs(a['delta']) >= abs(b['delta']):
+                    a['delta'] += b['delta']
+                    b['delta'] = 0
+                elif abs(a['delta']) < abs(b['delta']):
+                    a['delta'] = 0
+                    b['delta'] += a['delta']
+            elif a['scope'] == 'Region':
+                if abs(a['delta']) >= abs(b['delta']):
+                    a['delta'] -= b['delta']
+                    b['delta'] = 0
+                elif abs(a['delta']) < abs(b['delta']):
+                    a['delta'] = 0
+                    b['delta'] -= a['delta']
+            return a, b
+
+        def _scan(dic, term1, term2, source, seen=set()):
+            ''' scan the dict for other accounts with instances of the same
+                size in the given AZ/region.
+
+                allocate unused RIs to matching instances.
+
+                recurse until we can't allocate any more unused RIs
+            '''
+            for a, b in dic.iteritems():
+                if a == source or a in seen:
+                    continue
+
+                for x, y in b.iteritems():
+                    if dic[source][(term1, term2)]['scope'] == 'AvailabilityZone':
+                        x_one = x[1]
+                    elif dic[source][(term1, term2)]['scope'] == 'Region':
+                        x_one = x[1].name[:-1]
+
+                    if x[0] == term1 and \
+                            x_one == term2.name and \
+                            y['delta'] > 0:
+                        d1, d2 = _reallocate(dic[source][(term1, term2)], y)
+                        dic[source][(term1, term2)] = d1
+                        dic[a][x] = d2
+
+            if source not in seen:
+                seen.add(source)
+
+            if len(dic.keys()) > seen and \
+                    (dic[source][(term1, term2)].get('delta', 0) < 0 or \
+                    dic[source][(term1, term2)].get('reserved', 0) > 0):
+                dic = _scan(dic, term1, term2, source, seen)
+
+            return dic
+
+        for account, val in out.iteritems():
+            for tup, delta in val.iteritems():
+                instance_type = tup[0]
+
+                if delta['scope'] == 'AvailabilityZone' and delta['delta'] < 0:
+                    zone = tup[1]
+                    out = _scan(out, instance_type, zone, account)
+                elif delta['scope'] == 'Region' and delta['reserved'] > 0:
+                    region = tup[1]
+                    out = _scan(out, instance_type, region, account)
+        return out
 
     def json(self):
         ''' output json-formatted object for display in DataTable
@@ -348,32 +398,42 @@ class AwsAccountList(collections.MutableSet):
         '''
 
         out = []
-        for account in self.accounts:
-            delta = account.get_reservation_deltas()
-
-            LOG.debug("XXX: %s" % account)
-            LOG.debug("XXX: %s" % delta)
+        deltas = self.get_reservation_deltas()
+        for account, delta in deltas.iteritems():
             for tup, val in delta.iteritems():
                 instance_type = tup[0]
                 zone = tup[1]
 
-                ondemand = zone.ondemand_cost(instance_type)
-                od_monthly = ondemand * 24 * 30
-
                 r_upfront, r_hourly = zone.reserved_cost(instance_type)
                 r_monthly = ((r_upfront/12) + (r_hourly * 24 * 30))
 
-                data = {'account' : account.account_number,
-                        #FIXME: this needs a regional roll-up version
-                        'expiration' : zone.expiring_reservations(instance_type),
+                expiration = zone.expiring_reservations(instance_type)
+                if len(expiration) > 0:
+                    for idx, dic in enumerate(expiration):
+                        dic['account'] = account.name
+                        expiration[idx] = dic
+
+                data = {'account' : account.name,
+                        'expiration' : expiration,
                         'type' : instance_type,
                         'zone' : zone.name,
-                        'running' : val['running'],
                         'reserved' : val['reserved'],
                         'delta' : val['delta'],
                         'upfront' : locale.currency(r_upfront*val['delta']),
-                        'savings' : locale.currency(abs((od_monthly-r_monthly))*val['delta'])
                        }
+
+                if isinstance(tup[1], AwsRegion):
+                    data.update({'running' : 'N/A',
+                                 'savings' : 'N/A'
+                                })
+                elif isinstance(tup[1], AwsAvailabilityZone):
+                    ondemand = zone.ondemand_cost(instance_type)
+                    od_monthly = ondemand * 24 * 30
+
+                    data.update({'running' : val['running'],
+                                 'savings' : locale.currency( \
+                                    abs((od_monthly-r_monthly))*val['delta'])
+                                })
                 out.append(data)
         return out
 
@@ -385,21 +445,21 @@ class AwsAccountList(collections.MutableSet):
         '''
 
         out = []
-        for account in self.accounts:
-            delta = account.get_reservation_deltas()
+        deltas = self.get_reservation_deltas()
+        for account, delta in deltas.iteritems():
             for tup, val in delta.iteritems():
                 instance_type = tup[0]
                 zone = tup[1]
 
-                r_upfront, = zone.reserved_cost(instance_type)
+                r_upfront, _ = zone.reserved_cost(instance_type)
 
                 data = [account.account_number,
                         zone.name,
                         instance_type,
-                        val['running'],
-                        val['reserved'],
-                        val['delta'],
-                        locale.currency(r_upfront*val['delta'])
+                        val.get('running', 'N/A'),
+                        val.get('reserved', 0),
+                        val.get('delta', 0),
+                        locale.currency(r_upfront*val.get('delta', 0))
                        ]
                 out.append(data)
         return out
@@ -455,6 +515,62 @@ class AwsRegion(object):
             if zone.name == name:
                 return zone
 
+    def expiring_reservations(self, instance_type):
+        ''' given an instance type and availability zone,
+            return a list of when this account's reservations will expire
+        '''
+
+        out = []
+        for rsrv in self.reserved_instances:
+            if rsrv.instance_type == instance_type:
+                data = {'end_date' : rsrv.end.strftime("%Y-%m-%d"),
+                        'count' : rsrv.instance_count,
+                        'days_left' : (rsrv.end - datetime.now()).days
+                       }
+                out.append(data)
+        return out
+
+    def reservation_delta(self):
+        ''' return difference between running instances and reserved instances
+        '''
+        out = {}
+        for zone in self.availability_zones:
+            out.update(zone.reservation_delta())
+
+        # Allocate regional reserved instances
+        # XXX: currently, this will cause the output to show things like "5
+        # instances running, zero reservations, but zero delta",
+        # which isn't wholly intuitive.
+        for instance_type in self.reserved_instance_types():
+            reserved = sum([r.instance_count for r in \
+                    self.search_reservations(instance_type=instance_type)])
+            delta = reserved
+
+            for tup, val in out.iteritems():
+                if tup[0] == instance_type and val['delta'] > 0:
+                    if val['delta'] >= reserved:
+                        out[tup]['delta'] -= reserved
+                        delta = 0
+                    elif val['delta'] < reserved:
+                        out[tup]['delta'] = 0
+                        delta -= val['delta']
+
+            if reserved > 0:
+                out[(instance_type, self)] = {'reserved' : reserved,
+                                              'scope' : 'Region',
+                                              'delta' : delta }
+        return out
+
+    def reserved_cost(self, instance_type):
+        ''' return the up-front cost for a reservation of this type,
+            in this region.
+        '''
+
+        for rsrv in self.reserved_instances:
+            if rsrv.instance_type == instance_type:
+                return (rsrv.upfront_cost, rsrv.hourly_rate)
+        return (0, 0)
+
     def reserved_instance_types(self):
         ''' return list of region-scoped reserved instance types used in this region '''
         return set([rsrv.instance_type for rsrv in self.reserved_instances])
@@ -481,6 +597,21 @@ class AwsAvailabilityZone(object):
     def __repr__(self):
         return "AwsAvailabilityZone %s" % (self.name)
 
+    def expiring_reservations(self, instance_type):
+        ''' given an instance type and availability zone,
+            return a list of when this account's reservations will expire
+        '''
+
+        out = []
+        for rsrv in self.reserved_instances:
+            if rsrv.instance_type == instance_type:
+                data = {'end_date' : rsrv.end.strftime("%Y-%m-%d"),
+                        'count' : rsrv.instance_count,
+                        'days_left' : (rsrv.end - datetime.now()).days
+                       }
+                out.append(data)
+        return out
+
     def instance_types(self):
         ''' return list of instance types used in this AZ '''
         return set([inst.instance_type for inst in self.instances])
@@ -506,11 +637,9 @@ class AwsAvailabilityZone(object):
             kwargs keys must match attributes of the AwsReservedInstance class
         '''
         reservations = self.reserved_instances
-        LOG.debug('XXX: %s' % reservations)
         for key, val in kwargs.items():
             reservations = [i for i in reservations \
                             if key in i.__dict__ and getattr(i, key) == val]
-        LOG.debug('XXX: %s' % reservations)
         return reservations
 
     def ondemand_cost(self, instance_type):
@@ -522,21 +651,6 @@ class AwsAvailabilityZone(object):
             if inst.instance_type == instance_type:
                 return inst.hourly_rate
         return 0
-
-    def expiring_reservations(self, instance_type):
-        ''' given an instance type and availability zone,
-            return a list of when this account's reservations will expire
-        '''
-
-        out = []
-        for rsrv in self.reserved_instances:
-            if rsrv.instance_type == instance_type:
-                data = {'end_date' : rsrv.end.strftime("%Y-%m-%d"),
-                        'count' : rsrv.instance_count,
-                        'days_left' : (rsrv.end - datetime.now()).days
-                       }
-                out.append(data)
-        return out
 
     def reserved_cost(self, instance_type):
         ''' return the up-front cost for a reservation of this type,
@@ -552,6 +666,26 @@ class AwsAvailabilityZone(object):
                 return (i.ri_price.get('Quantity', 0), i.ri_price.get('Hrs', 0))
 
         return (0, 0)
+
+    def reservation_delta(self):
+        ''' return difference between running instances and reserved instances
+        '''
+
+        out = {}
+        for instance_type in self.instance_types():
+            running = len(self.search_instances(instance_type=instance_type))
+
+            reserved = sum([r.instance_count for r in \
+                self.search_reservations(instance_type=instance_type)])
+
+            if running < 1 and reserved < 1:
+                continue
+
+            out[(instance_type, self)] = {'running' : running,
+                                          'reserved' : reserved,
+                                          'delta' : running - reserved,
+                                          'scope' : 'AvailabilityZone'}
+        return out
 
 #########################################################
 # Helper methods
@@ -642,7 +776,7 @@ def compile_data(request):
             for i in instances:
                 tup = (i.instance_type, i.availability_zone)
 
-                if i.availability_zone not in az_dict.keys():
+                if i.region != boto_region:
                     continue
 
                 if tup in query_cache['i'].keys():
@@ -686,7 +820,7 @@ def compile_data(request):
             for r in reservations:
                 tup = (r.instance_type, r.availability_zone)
 
-                if r.availability_zone not in az_dict.keys():
+                if r.region != boto_region:
                     continue
 
                 if tup in query_cache['j'].keys():
