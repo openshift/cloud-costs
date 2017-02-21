@@ -208,7 +208,10 @@ def main(args):
                 uidlist[table].update(uids)
             else:
                 uidlist[table] = uids
-            obj = insert_or_update(DBSession, table, defaults=defaults, **kwargs)
+            obj = insert_or_update(DBSession,
+                                   table,
+                                   defaults=defaults,
+                                   **kwargs)
             merged.append(DBSession.merge(obj))
     try:
         transaction.commit()

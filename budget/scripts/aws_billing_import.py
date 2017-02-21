@@ -60,7 +60,7 @@ def prune_logs(bucket):
     for key in bucket.list():
         if re.search('logs\/', key.name):
             today = (date.today() - relativedelta(months=1)).strftime('%Y-%m-%d')
-            if key.name[5:15] < today:
+            if key.name[5:15] < date.today().strftime('%Y-%m-%d'):
                 log.debug('Deleting %s' % key.name)
                 key.delete()
 

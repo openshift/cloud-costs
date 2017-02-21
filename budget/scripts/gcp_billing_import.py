@@ -5,11 +5,12 @@ import logging
 import os
 import re
 import sys
-import transaction
 
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from dateutil.parser import parse as parse_date
+
+import transaction
 
 from gcloud import storage
 from oauth2client.client import GoogleCredentials
