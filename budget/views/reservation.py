@@ -28,14 +28,6 @@ PURCHASE_DRY_RUN = True
 ONE_YEAR = 31536000 # 1 year, in seconds
 THREE_YEAR = ONE_YEAR * 3
 
-# This is the number of days left in an RI.
-#
-# If the RI is about to expire, we don't count it as an active RI for purposes
-# of making purchasing decisions.
-#
-# TODO: update the templates and html to enable passing in user-defined values.
-DEFAULT_EXPIRATION_THRESHOLD = 60 # days
-
 LOG = logging.getLogger(__name__)
 
 # adjust boto's logging level.
@@ -713,7 +705,7 @@ def availability_zones(request, account):
     ''' return a list of EC2 AZs for a given account,
         cache the data locally for performance reasons
     '''
-    THRESHOLD=3
+    THRESHOLD=3 # days
 
     zone_file = request.registry.settings['cache.dir'] + "/ec2_zones.yaml"
     try:
