@@ -27,8 +27,8 @@ from ..models import (DBSession,
 
 from ..util.fileloader import load_json, save_json
 
-LOG = logging.getLogger(__name__)
 COMMIT_THRESHOLD = 10000
+LOG = None
 
 def usage(argv):
     ''' cli usage '''
@@ -98,37 +98,28 @@ def insert_data(filename, cache_dir, rundate=None):
     '''
     objects = []
     jsonfile = load_json(cache_dir+'/'+filename)
-    LOG.debug("Inserting data from: %s", filename)
+    LOG.debug("Inserting data from: %s for %s", filename, rundate)
     for item in jsonfile:
         if len(objects) > COMMIT_THRESHOLD:
             transaction.commit()
             del objects[:]
 
-        if rundate:
-            # If the data points are on the same day, load 'em.
-            start = parse_date(item['startTime']).replace(hour=0,
-                                                          minute=0,
-                                                          second=0,
-                                                          tzinfo=None)
-            end = parse_date(item['endTime']).replace(hour=0,
-                                                      minute=0,
-                                                      second=0,
-                                                      tzinfo=None)
-            if start == rundate or end == rundate:
-                pass
-            else:
-                continue
+        start = parse_date(item['startTime']).replace(tzinfo=None)
+        end = parse_date(item['endTime']).replace(tzinfo=None)
+
+        if rundate and rundate != start:
+            continue
 
         if 'projectName' in item.keys():
             project_name = item['projectName']
         else:
-            project_name = None
+            project_name = 'No project'
 
         line = GcpLineItem(project_name=project_name,
                            line_description=item['description'],
                            line_id=item['lineItemId'],
-                           start_time=parse_date(item['startTime']),
-                           end_time=parse_date(item['endTime']),
+                           start_time=start,
+                           end_time=end,
                            measured_amount=item['measurements'][0]['sum'],
                            measured_unit=item['measurements'][0]['unit'],
                            cost_amount=item['cost']['amount'],
@@ -156,10 +147,12 @@ def run(settings, options):
         # So, we scan all three files for relevant data needing to be reset.
 
         rundate = datetime.strptime(options['rundate'], '%Y-%m-%d')
-        runafter = rundate + relativedelta(days=1)
-        runbefore = rundate - relativedelta(days=1)
         filename = date_to_filename(rundate)
+
+        runbefore = rundate + relativedelta(days=-1)
         filebefore = date_to_filename(runbefore)
+
+        runafter = rundate + relativedelta(days=1)
         fileafter = date_to_filename(runafter)
 
         LOG.info("Deleting records with start-date: %s", options['rundate'])
@@ -167,11 +160,7 @@ def run(settings, options):
         DBSession.query(GcpLineItem
                        ).filter(GcpLineItem.start_time == options['rundate']
                                ).delete()
-        LOG.info("Deleting records with end-date: %s", options['rundate'])
-        # delete any existing records and re-ingest
-        DBSession.query(GcpLineItem
-                       ).filter(GcpLineItem.end_time == options['rundate']
-                               ).delete()
+
         insert_data(filebefore, cache_dir, rundate=rundate)
         insert_data(filename, cache_dir, rundate=rundate)
         insert_data(fileafter, cache_dir, rundate=rundate)
@@ -218,6 +207,8 @@ def main(argv):
     options = parse_vars(argv[2:])
 
     setup_logging(config_uri)
+    global LOG
+    LOG = logging.getLogger(__name__)
 
     settings = get_appsettings(config_uri, options=options)
     engine = engine_from_config(settings, 'sqlalchemy.')
