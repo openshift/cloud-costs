@@ -18,6 +18,7 @@ from budget.util.nvd3js import *
 log = logging.getLogger(__name__)
 LAST_YEAR = datetime.now() - timedelta(days=365)
 LAST_SIX_MONTHS = datetime.now() - timedelta(days=180)
+LAST_THREE_MONTHS = datetime.now() - timedelta(days=90)
 LAST_MONTH = datetime.now() - timedelta(days=30)
 locale.setlocale(locale.LC_ALL, "en_US")
 
@@ -433,37 +434,28 @@ def gcp_cost(request):
         if project not in graph_data.keys():
             graph_data[project] = set()
 
-        start_times = DBSession.query(GcpLineItem.start_time.distinct()
-                                     ).filter(\
-                                    GcpLineItem.project_name == project,
-                                    GcpLineItem.start_time >= LAST_SIX_MONTHS,
-                                             ).all()
+        results = DBSession.query(GcpLineItem.start_time,
+                                  func.sum(GcpLineItem.cost_amount
+                                          )).filter(\
+                                  GcpLineItem.project_name == project,
+                                  GcpLineItem.start_time.between(LAST_THREE_MONTHS,
+                                                                 datetime.now()),
+                                                   ).group_by(\
+                                  GcpLineItem.start_time
+                                                             ).all()
 
-        for start, in start_times:
-            # ignore hourly variations because we're displaying a daily view
-            day_begin = start.replace(hour=0, minute=0, second=0, tzinfo=None)
-            day_end = start.replace(hour=23, minute=59, second=59, tzinfo=None)
-
-            if day_begin not in seen_dates:
-                seen_dates.add(epoch_date(day_begin))
-
-            results = DBSession.query(func.sum(GcpLineItem.cost_amount
-                                              )).filter(\
-                                    GcpLineItem.project_name == project,
-                                    GcpLineItem.start_time.between(day_begin,
-                                                                   day_end),
-                                                       ).all()
-
-            for rslt, in results:
-                data = (epoch_date(day_begin), rslt)
-                graph_data[project].add(data)
+        for start, cost in results:
+            log.debug("XXX: %s - %s - %s", project, start, cost)
+            seen_dates.add(epoch_date(start))
+            data = (epoch_date(start), cost)
+            graph_data[project].add(data)
 
     # remove spurious key.
     del graph_data['None']
 
     # ensure that the length of the coordinate value arrays are all the same.
     for key, val in graph_data.items():
-        for dat in seen_dates-set(coord[0] for coord in val):
+        for dat in seen_dates - set(coord[0] for coord in val):
             graph_data[key].add((dat, 0))
 
     graph = StackedAreaChart(extra="""
