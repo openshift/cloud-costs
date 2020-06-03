@@ -53,7 +53,7 @@ class Branch(object):
             __dict__ and our children's __dict__
         '''
 
-        blacklist = ['children']
+        denylist = ['children']
         out = []
         me = {}
 
@@ -65,7 +65,7 @@ class Branch(object):
             return []
 
         for k,v in self.__dict__.iteritems():
-            if k not in blacklist:
+            if k not in denylist:
                 me[k] = str(v)
         out.append(me)
         for child in self.children:

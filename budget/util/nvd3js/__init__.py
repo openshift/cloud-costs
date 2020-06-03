@@ -82,11 +82,11 @@ function data() {
         ''' provides the chained calls to set optional attributes on the chart
             class
         '''
-        blacklist = [ 'data', '_out_', 'extra', 'legend' ]
+        denylist = [ 'data', '_out_', 'extra', 'legend' ]
         out = self._out_
 
         for k, v in self.__dict__.items():
-            if k in blacklist:
+            if k in denylist:
                 continue
             out.append('.%s(%s)' % (k,self._value_map(v)))
         return ''.join(out)
